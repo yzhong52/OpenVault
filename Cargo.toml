@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Browser automation (CDP)
-chromiumoxide = { version = "0.7", features = ["tokio-runtime"] }
+chromiumoxide = "0.9"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

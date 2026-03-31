@@ -1,5 +1,7 @@
 use anyhow::Result;
-use chromiumoxide::cdp::browser_protocol::accessibility::{AxNode, GetFullAxTreeParams};
+use chromiumoxide::cdp::browser_protocol::accessibility::{
+    AxNode, EnableParams, GetFullAxTreeParams,
+};
 use chromiumoxide::Page;
 use std::collections::HashMap;
 
@@ -17,12 +19,30 @@ pub struct AccessibilitySnapshot {
 }
 
 impl AccessibilitySnapshot {
+    pub fn empty() -> Self {
+        Self { text: String::new(), node_count: 0, refs: HashMap::new() }
+    }
+
     pub async fn capture(page: &Page) -> Result<Self> {
-        let result = page.execute(GetFullAxTreeParams::default()).await?;
-        let nodes = result.nodes.clone();
-        let node_count = nodes.len();
-        let (text, refs) = format_tree(&nodes);
-        Ok(Self { text, node_count, refs })
+        // Enable the accessibility domain — required before GetFullAxTree.
+        // Ignore errors (may already be enabled, or page not ready yet).
+        let _ = page.execute(EnableParams::default()).await;
+
+        match page.execute(GetFullAxTreeParams::default()).await {
+            Ok(result) => {
+                let nodes = result.nodes.clone();
+                let node_count = nodes.len();
+                let (text, refs) = format_tree(&nodes);
+                Ok(Self { text, node_count, refs })
+            }
+            Err(e) => {
+                // about:blank and pages mid-navigation return CDP errors like
+                // "uninteresting" — return an empty snapshot so the agent can
+                // still proceed (it will navigate first, then re-snapshot).
+                tracing::debug!("accessibility snapshot unavailable: {e}");
+                Ok(Self::empty())
+            }
+        }
     }
 }
 

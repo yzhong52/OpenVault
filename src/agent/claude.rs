@@ -70,6 +70,8 @@ impl ClaudeClient {
             "max_tokens": 1024,
             "system": system,
             "tools": tools_schema(),
+            // Force Claude to always respond with a tool call — never plain text.
+            "tool_choice": { "type": "any" },
             "messages": messages,
         });
 

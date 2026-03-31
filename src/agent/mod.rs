@@ -7,8 +7,6 @@ pub use tools::ToolCall;
 use crate::browser::Session;
 use anyhow::Result;
 
-/// The agentic observe → reason → act loop.
-/// Drives the browser via Claude tool calls until the task is complete.
 pub struct Agent {
     client: ClaudeClient,
     max_steps: usize,
@@ -28,14 +26,29 @@ impl Agent {
         for step in 0..self.max_steps {
             tracing::debug!("agent step {step}");
 
+            // Take a snapshot of the current page to give Claude visual context.
+            // On step 0 this may be about:blank — the snapshot will be empty and
+            // Claude will open with a navigate call.
             let snapshot = session.snapshot().await?;
-            tracing::debug!("snapshot ({} nodes):\n{}", snapshot.node_count, snapshot.text);
+
+            if snapshot.node_count > 0 {
+                tracing::debug!(
+                    "snapshot ({} nodes):\n{}",
+                    snapshot.node_count,
+                    snapshot.text
+                );
+            } else {
+                tracing::debug!("snapshot empty (page not yet loaded)");
+            }
 
             let response = self.client.complete(&messages, &snapshot.text).await?;
 
             match response {
                 claude::Response::ToolCall(call) => {
+                    tracing::debug!("tool call: {} {:?}", call.name, call.input);
                     let result = tools::execute(&call, session).await?;
+                    tracing::debug!("tool result: {}", result.output);
+
                     messages.push(claude::Message::assistant_tool_call(&call));
                     messages.push(claude::Message::tool_result(&call.id, &result.output));
 

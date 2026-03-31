@@ -20,13 +20,13 @@ No UI. No cloud. All local.
 
 | Component | Crate | Why |
 |---|---|---|
-| Browser automation | `chromiumoxide` | Full async CDP, complete protocol coverage, Tokio-native |
+| Browser automation | `chromiumoxide 0.9` | Full async CDP, Tokio-native, Chrome 146 compatible |
 | Accessibility snapshot | CDP `Accessibility.getFullAXTree` via chromiumoxide | No screenshot needed; semantic tree |
 | Network interception | `chromiumoxide` Network domain | Capture XHR JSON responses directly |
 | Agent loop / LLM | `reqwest` + Claude API (raw HTTP) | No official Rust SDK — `reqwest` is more reliable than community crates |
 | Database | `rusqlite` (SQLite) | Local-only, zero setup, sufficient for prototype |
 | CLI | `clap` | Standard Rust CLI library |
-| Credential store | `keyring` | OS keychain (Keychain on macOS, libsecret on Linux) |
+| Credential store | `keyring` with `apple-native` feature | macOS Keychain — feature flag is required or it silently uses an in-memory mock |
 | Async runtime | `tokio` | Required by chromiumoxide |
 | Serialization | `serde` + `serde_json` | JSON handling throughout |
 | Error handling | `anyhow` | Ergonomic error propagation |
@@ -43,23 +43,20 @@ openvault/
 │   ├── cli.rs                   # CLI command definitions
 │   ├── agent/
 │   │   ├── mod.rs               # Agent loop: observe → reason → act
-│   │   ├── snapshot.rs          # Accessibility tree extraction + formatting
-│   │   ├── claude.rs            # Claude API client (reqwest)
-│   │   └── tools.rs             # Tool definitions for the agent
+│   │   ├── claude.rs            # Claude API client (reqwest), tool_choice: any
+│   │   └── tools.rs             # Tool execution dispatch
 │   ├── browser/
-│   │   ├── mod.rs               # Browser session management
-│   │   ├── session.rs           # chromiumoxide launch, page lifecycle
+│   │   ├── mod.rs               # Session: launch, snapshot, resolve refs
+│   │   ├── snapshot.rs          # CDP accessibility tree → compact text + ref map
 │   │   ├── network.rs           # XHR/fetch response interception
-│   │   └── actions.rs           # click, type, navigate wrappers
+│   │   └── actions.rs           # click/type/navigate via XPath candidates + CSS fallback
 │   ├── connectors/
-│   │   ├── mod.rs               # Connector trait
+│   │   ├── mod.rs               # Connector trait + registry
 │   │   └── td.rs                # TD EasyWeb connector
 │   ├── db/
-│   │   ├── mod.rs               # DB connection + migrations
-│   │   ├── schema.rs            # Table definitions
-│   │   └── transactions.rs      # Insert / query transactions
+│   │   └── mod.rs               # SQLite: schema, migrations, insert, query, sync log
 │   └── credentials/
-│       └── mod.rs               # keyring read/write per institution
+│       └── mod.rs               # keyring read/write + env var override
 ```
 
 ---
@@ -71,8 +68,7 @@ openvault/
 #[async_trait]
 pub trait Connector {
     fn institution_id(&self) -> &str;
-    async fn login(&self, session: &BrowserSession) -> Result<()>;
-    async fn fetch_transactions(&self, session: &BrowserSession) -> Result<Vec<RawTransaction>>;
+    async fn run(&self, session: &Session, creds: Credentials) -> Result<Vec<Transaction>>;
 }
 ```
 
@@ -104,10 +100,9 @@ CREATE TABLE sync_log (
 ### CLI Commands
 ```
 openvault sync td              # run TD connector, store to DB
-openvault sync --all           # run all configured connectors
 openvault list                 # list recent transactions (last 30 days)
-openvault list --account td    # filter by institution
-openvault credentials set td   # save TD credentials to OS keychain
+openvault list --institution td --days 90
+openvault credentials-set td   # save TD credentials to OS keychain
 openvault status               # show last sync time per institution
 ```
 
@@ -115,67 +110,37 @@ openvault status               # show last sync time per institution
 
 ## Agent Loop Design
 
-The agent loop drives each connector. It does not use hardcoded selectors — it reasons about the page state at each step.
+The agent loop drives each connector with no hardcoded selectors — it reasons about the page at each step.
 
 ```
-1. Take accessibility snapshot of current page
-2. Send snapshot + task context to Claude
-3. Claude returns next action (click ref, type text, navigate, or done)
+1. Take accessibility snapshot of current page (empty ok — agent navigates first)
+2. Send snapshot + task context to Claude (tool_choice: any → always a tool call)
+3. Claude returns next action (click ref, type text, navigate, snapshot, done)
 4. Execute action via browser
 5. Check network log for intercepted JSON responses
 6. If transaction JSON found → extract and return
 7. If not done → go to step 1
-8. If MFA detected → pause and prompt user in CLI
+8. If MFA detected → wait_for_mfa pauses loop, user completes in browser
 ```
 
 ### Snapshot Format for Claude
 
-The accessibility tree from CDP is verbose. Before sending to Claude, format it as a compact text tree with only role, name, and ref:
-
 ```
 [button @e1] "Sign In"
-[textbox @e2] "Username" (value: "")
-[textbox @e3] "Password" (value: "")
+[textbox @e2] "Username or Access Card"
+[textbox @e3] "Password"
 [link @e4] "Forgot password?"
 ```
 
-This mirrors what OpenClaw's `pw-role-snapshot.ts` does — and stays well under 2k tokens per page.
-
-### Tool Definitions (Claude tool use)
-```json
-[
-  {
-    "name": "click",
-    "description": "Click an element by its ref",
-    "input_schema": { "ref": "string" }
-  },
-  {
-    "name": "type",
-    "description": "Type text into an element",
-    "input_schema": { "ref": "string", "text": "string" }
-  },
-  {
-    "name": "navigate",
-    "description": "Navigate to a URL",
-    "input_schema": { "url": "string" }
-  },
-  {
-    "name": "snapshot",
-    "description": "Take a fresh accessibility snapshot of the current page",
-    "input_schema": {}
-  },
-  {
-    "name": "wait_for_mfa",
-    "description": "Pause and prompt the user to complete MFA in the browser",
-    "input_schema": {}
-  },
-  {
-    "name": "done",
-    "description": "Signal that the task is complete",
-    "input_schema": { "result": "string" }
-  }
-]
-```
+### Tool Definitions
+| Tool | Input | Purpose |
+|---|---|---|
+| `navigate` | `url` | Go to a URL |
+| `click` | `ref` | Click element by @eN ref |
+| `type_text` | `ref`, `text` | Type into element |
+| `snapshot` | — | Refresh accessibility snapshot |
+| `wait_for_mfa` | — | Pause for user to complete MFA |
+| `done` | `result` | Signal complete, return JSON |
 
 ---
 
@@ -201,69 +166,64 @@ Target: `https://easyweb.td.com`
 
 ---
 
-## Network Interception Strategy
+## What's Done
 
-Register a response listener before any navigation. TD's SPA likely fires an internal API call when loading transaction history — capture it before attempting any DOM extraction:
+### Phase 0 — Scaffold ✅
+- Rust project init, all crates in `Cargo.toml`
+- `browser/session.rs`: chromiumoxide launch with `--no-first-run` flags
+- `browser/snapshot.rs`: `Accessibility.getFullAXTree` → compact text + ref map
+- `browser/actions.rs`: XPath candidate list per role, CSS fallback
+- `browser/network.rs`: XHR response URL interception
 
-```rust
-// Intercept all XHR responses, filter for likely transaction endpoints
-page.enable_fetch(None, Some(true)).await?;
-page.event_listener::<EventResponseReceived>().await
-    .filter(|e| is_likely_transaction_response(&e.response.url))
-    .map(|e| extract_body(e))
-```
+### Phase 1 — Agent Loop ✅
+- `agent/claude.rs`: Claude API via reqwest, `tool_choice: any` forces tool calls
+- `agent/tools.rs`: click/type/navigate/snapshot/wait_for_mfa/done
+- Observe → reason → act loop with up to 30 steps
 
-If a JSON response is captured with transaction data, the connector returns immediately — no snapshot parsing needed for that step.
+### Phase 2 — Credentials ✅
+- `credentials/mod.rs`: keyring with `apple-native` feature (real macOS Keychain)
+- Fixed bug: `keyring = "3"` with no features silently used in-memory mock — now uses `apple-native`
+- 5 unit tests against real Keychain: round-trip, missing, overwrite, special chars, delete
+- Env var override: `OPENVAULT_TD_USERNAME` / `OPENVAULT_TD_PASSWORD`
+
+### Phase 3 — Database + CLI ✅
+- `db/mod.rs`: SQLite auto-migration, insert/query, sync log start/finish/error
+- `main.rs`: all CLI commands wired up, sync log recorded on every run
 
 ---
 
-## MFA Handling (CLI)
+## Current Blocker: iframe Login Form
 
-When the agent calls `wait_for_mfa`:
-1. Print to terminal: `[OpenVault] MFA required. Complete verification in the browser window, then press Enter to continue.`
-2. Browser remains open and visible
-3. User completes SMS/push/OTP in the real browser
-4. CLI resumes on Enter
-5. Agent takes a fresh snapshot and continues
+**Status:** Agent navigates to TD EasyWeb and Claude correctly identifies the login fields in the accessibility snapshot. However, `find_xpath` and `find_element` fail with `Error -32000: Invalid search result range` because TD's login form is served inside a **cross-origin iframe**.
+
+The accessibility tree sees across iframes (hence Claude sees the fields), but DOM queries are scoped to the main document only.
+
+### Options
+
+| Option | Approach | Complexity |
+|---|---|---|
+| **A — CDP target attach** | Each iframe is a separate CDP target. Attach to it directly and run `find_xpath` there. This is how OpenClaw handles it in `cdp.ts`. | Medium |
+| **B — JS `document.querySelector` in frame context** | Use `Runtime.evaluate` with the frame's `executionContextId` to run selectors inside the iframe. | Medium |
+| **C — Playwright subprocess** | Call OpenClaw's existing TypeScript Playwright stack as a subprocess. Keep Rust for DB/CLI/agent loop, delegate browser control to the proven Node layer. | Low complexity, adds Node dep |
 
 ---
 
-## Phased Execution
+## Next Steps
 
-### Phase 0 — Scaffold (1–2 days)
-- [ ] Init Rust project, add all crates to `Cargo.toml`
-- [ ] Implement `browser/session.rs`: launch chromiumoxide, open page, close
-- [ ] Implement `agent/snapshot.rs`: call `Accessibility.getFullAXTree` via CDP, format to compact text
-- [ ] Verify snapshot output looks reasonable on a test page
-
-### Phase 1 — Agent Loop (2–3 days)
-- [ ] Implement `agent/claude.rs`: send messages + tools to Claude API via reqwest, stream response
-- [ ] Implement `agent/tools.rs`: execute click/type/navigate/snapshot actions
-- [ ] Wire up the observe → reason → act loop
-- [ ] Test on a simple public form (not TD yet)
-
-### Phase 2 — TD Connector (2–3 days)
-- [ ] Implement `credentials/mod.rs`: store/retrieve TD credentials via keyring
-- [ ] Add network interception in `browser/network.rs`
-- [ ] Implement `connectors/td.rs` with the login + transaction fetch flow
-- [ ] Handle MFA pause/resume in CLI
-- [ ] Run against TD EasyWeb sandbox / real account
-
-### Phase 3 — Database + CLI (1–2 days)
-- [ ] Implement `db/`: SQLite schema, migrations, insert/query
-- [ ] Normalize raw TD transaction data into canonical schema
-- [ ] Implement all `clap` CLI commands
-- [ ] `openvault sync td` → end-to-end working
+1. **Resolve iframe login form** (one of options A/B/C above)
+2. Complete first successful login to TD EasyWeb
+3. Navigate to transaction history, intercept or scrape transactions
+4. Verify end-to-end: `openvault sync td` → rows in SQLite → `openvault list`
 
 ---
 
 ## Key Risks
 
-| Risk | Mitigation |
-|---|---|
-| TD detects automation (bot fingerprint) | chromiumoxide launches real Chrome; add realistic delays between actions |
-| TD changes login UI | Agentic approach adapts — no hardcoded selectors |
-| MFA not handled gracefully | wait_for_mfa tool pauses the loop; user retains control |
-| Accessibility tree missing key elements | Fall back to filtered DOM via `Runtime.evaluate` JS injection |
-| XHR response not JSON (encrypted/obfuscated) | Fall back to CSV export download flow |
-| keyring unavailable on some systems | Fall back to AES-256 encrypted file store |
+| Risk | Mitigation | Status |
+|---|---|---|
+| TD detects automation (bot fingerprint) | chromiumoxide launches real Chrome; `--no-first-run` flags suppress noisy startup events | Monitored |
+| TD login form in cross-origin iframe | CDP target attach or frame context JS evaluation | **Active blocker** |
+| TD changes login UI | Agentic approach adapts — no hardcoded selectors | Mitigated |
+| MFA not handled gracefully | `wait_for_mfa` pauses loop; user retains control | Implemented |
+| XHR response not JSON | Fall back to CSV export download flow | Planned |
+| keyring mock store (no feature flag) | Fixed: `apple-native` feature now explicit; unit tested | Resolved ✅ |

@@ -24,6 +24,14 @@ impl Session {
         let (browser, mut handler) = Browser::launch(
             BrowserConfig::builder()
                 .with_head() // visible browser — needed for MFA
+                // Suppress the NTP and first-run UI that triggers undeserializable
+                // CDP events (Page.frameRequestedNavigation) and kills the handler.
+                .args([
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-default-apps",
+                    "--disable-extensions",
+                ])
                 .build()
                 .map_err(|e| anyhow::anyhow!(e))?,
         )
