@@ -54,6 +54,12 @@ pub async fn execute(call: &ToolCall, session: &Session) -> Result<ToolResult> {
 
         "done" => call.input["result"].as_str().unwrap_or("done").to_string(),
 
+        // Diagnostic: dump all inputs/buttons across every frame so we can
+        // see exactly what attributes are on the elements the agent needs to target.
+        "dump_frames" => {
+            session.actions().dump_frames().await?
+        }
+
         unknown => anyhow::bail!("unknown tool: {unknown}"),
     };
 

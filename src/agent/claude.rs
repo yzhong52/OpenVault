@@ -166,6 +166,11 @@ fn tools_schema() -> Value {
                 "properties": { "result": { "type": "string" } },
                 "required": ["result"]
             }
+        },
+        {
+            "name": "dump_frames",
+            "description": "Dump all input fields and buttons across every iframe on the page. Use this when click or type_text fails to find an element — it shows the exact attributes available for targeting.",
+            "input_schema": { "type": "object", "properties": {} }
         }
     ])
 }

@@ -7,6 +7,14 @@ edition = "2024"
 name = "openvault"
 path = "src/main.rs"
 
+[[bin]]
+name = "inspect_td"
+path = "src/bin/inspect_td.rs"
+
+[lib]
+name = "openvault"
+path = "src/lib.rs"
+
 [dependencies]
 # Browser automation (CDP)
 chromiumoxide = "0.9"

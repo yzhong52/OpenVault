@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use chromiumoxide::cdp::js_protocol::runtime::EvaluateParams;
 use chromiumoxide::Page;
 
 pub struct BrowserActions<'a> {
@@ -16,34 +17,115 @@ impl<'a> BrowserActions<'a> {
         Ok(())
     }
 
-    /// Click an element by its ARIA role and accessible name.
-    /// Tries each XPath candidate in order until one succeeds.
+    /// Click an element by ARIA role and accessible name.
+    /// Tries the main document first, then falls back to each iframe.
     pub async fn click_by_role_name(&self, role: &str, name: &str) -> Result<()> {
-        let el = self.find_by_role_name(role, name).await?;
-        el.click().await?;
-        Ok(())
+        // Main document — XPath candidates
+        for xpath in xpath_candidates(role, name) {
+            if let Ok(el) = self.page.find_xpath(&xpath).await {
+                tracing::debug!("click [{role}] \"{name}\" via main-doc xpath");
+                el.click().await?;
+                return Ok(());
+            }
+        }
+        // Main document — CSS candidates
+        for css in css_candidates(role, name) {
+            if let Ok(el) = self.page.find_element(&css).await {
+                tracing::debug!("click [{role}] \"{name}\" via main-doc css");
+                el.click().await?;
+                return Ok(());
+            }
+        }
+        // Iframes — JS eval in each frame's execution context
+        self.exec_in_frames(role, name, "el.click()").await
+            .with_context(|| format!("could not find [{role}] \"{name}\" in main doc or any iframe"))
     }
 
-    /// Focus an element by role/name and type text into it.
+    /// Type text into an element by ARIA role and accessible name.
     pub async fn type_by_role_name(&self, role: &str, name: &str, text: &str) -> Result<()> {
-        let el = self.find_by_role_name(role, name).await?;
-        el.click().await?;
-        el.type_str(text).await?;
-        Ok(())
+        // Main document
+        for xpath in xpath_candidates(role, name) {
+            if let Ok(el) = self.page.find_xpath(&xpath).await {
+                tracing::debug!("type [{role}] \"{name}\" via main-doc xpath");
+                el.click().await?;
+                el.type_str(text).await?;
+                return Ok(());
+            }
+        }
+        for css in css_candidates(role, name) {
+            if let Ok(el) = self.page.find_element(&css).await {
+                tracing::debug!("type [{role}] \"{name}\" via main-doc css");
+                el.click().await?;
+                el.type_str(text).await?;
+                return Ok(());
+            }
+        }
+        // Iframes — focus + set value + dispatch input/change events in frame context.
+        // Dispatching synthetic events is necessary for React/Angular to pick up the value.
+        let escaped = text.replace('\\', "\\\\").replace('\'', "\\'");
+        let js = format!(
+            "el.focus(); \
+             el.value = '{escaped}'; \
+             el.dispatchEvent(new Event('input', {{bubbles:true}})); \
+             el.dispatchEvent(new Event('change', {{bubbles:true}}));"
+        );
+        self.exec_in_frames(role, name, &js).await
+            .with_context(|| format!("could not find [{role}] \"{name}\" in main doc or any iframe"))
     }
 
-    /// Fallback: click by CSS selector.
-    pub async fn click(&self, selector: &str) -> Result<()> {
-        self.page.find_element(selector).await?.click().await?;
-        Ok(())
-    }
+    /// Dump all inputs, textareas, and buttons across every frame.
+    /// Returns a JSON-like string showing tag + all attributes for each element.
+    /// Used to diagnose why click/type_text can't find an element.
+    pub async fn dump_frames(&self) -> Result<String> {
+        let js = r#"
+            (function() {
+                var els = document.querySelectorAll('input, textarea, button, a, [role]');
+                return Array.from(els).map(function(el) {
+                    var attrs = {};
+                    for (var i = 0; i < el.attributes.length; i++) {
+                        attrs[el.attributes[i].name] = el.attributes[i].value;
+                    }
+                    return JSON.stringify({ tag: el.tagName.toLowerCase(), attrs: attrs, text: (el.innerText || '').trim().slice(0, 80) });
+                }).join('\n');
+            })()
+        "#;
 
-    /// Fallback: type into element found by CSS selector.
-    pub async fn type_text(&self, selector: &str, text: &str) -> Result<()> {
-        let el = self.page.find_element(selector).await?;
-        el.click().await?;
-        el.type_str(text).await?;
-        Ok(())
+        let frames = self.page.frames().await?;
+        let mut out = Vec::new();
+
+        // Main frame
+        match self.page.evaluate_expression(js).await {
+            Ok(r) => {
+                if let Some(v) = r.value() {
+                    out.push(format!("=== main frame ===\n{}", v.as_str().unwrap_or("")));
+                }
+            }
+            Err(e) => out.push(format!("=== main frame error: {e} ===")),
+        }
+
+        // Iframes
+        for (i, frame_id) in frames.iter().enumerate() {
+            if let Ok(Some(ctx)) = self.page.frame_execution_context(frame_id.clone()).await {
+                let params = EvaluateParams::builder()
+                    .expression(js)
+                    .context_id(ctx)
+                    .build()
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                match self.page.evaluate_expression(params).await {
+                    Ok(r) => {
+                        if let Some(v) = r.value() {
+                            let s = v.as_str().unwrap_or("").trim().to_string();
+                            if !s.is_empty() {
+                                out.push(format!("=== frame {i} ===\n{s}"));
+                            }
+                        }
+                    }
+                    Err(e) => out.push(format!("=== frame {i} error: {e} ===")),
+                }
+            }
+        }
+
+        Ok(out.join("\n\n"))
     }
 
     /// Pause and wait for the user to press Enter in the terminal (e.g. after MFA).
@@ -57,69 +139,110 @@ impl<'a> BrowserActions<'a> {
 
     // ── private ──────────────────────────────────────────────────────────────
 
-    async fn find_by_role_name(
-        &self,
-        role: &str,
-        name: &str,
-    ) -> Result<chromiumoxide::element::Element> {
-        // 1. Try XPath candidates in the main document
-        let candidates = xpath_candidates(role, name);
-        for xpath in &candidates {
-            match self.page.find_xpath(xpath).await {
-                Ok(el) => return Ok(el),
-                Err(e) => {
-                    tracing::debug!("xpath miss [{role}] \"{name}\": {xpath} → {e}");
-                }
-            }
-        }
+    /// Iterate over all frames in the page, find the element by CSS selector in
+    /// each frame's execution context, and run `js_action` on it.
+    async fn exec_in_frames(&self, role: &str, name: &str, js_action: &str) -> Result<()> {
+        let frames = self.page.frames().await?;
+        tracing::debug!("searching {} frames for [{role}] \"{name}\"", frames.len());
 
-        // 2. Try CSS selector fallback in the main document
-        for css in css_candidates(role, name) {
-            match self.page.find_element(&css).await {
-                Ok(el) => return Ok(el),
-                Err(e) => {
-                    tracing::debug!("css miss [{role}] \"{name}\": {css} → {e}");
-                }
-            }
-        }
+        for frame_id in frames {
+            let ctx_id = match self.page.frame_execution_context(frame_id.clone()).await {
+                Ok(Some(id)) => id,
+                _ => continue,
+            };
 
-        // 3. The element may be inside an iframe — search via JS across all frames
-        if let Ok(el) = self.find_in_frames(role, name).await {
-            return Ok(el);
-        }
-
-        anyhow::bail!("could not find [{role}] \"{name}\" in main document or any iframe")
-    }
-
-    /// Search for an element across all iframes using JavaScript evaluation.
-    async fn find_in_frames(
-        &self,
-        role: &str,
-        name: &str,
-    ) -> Result<chromiumoxide::element::Element> {
-        let selectors = js_selectors(role, name);
-        for frame in self.page.frames().await? {
-            for sel in &selectors {
-                // Use evaluate to check if element exists, then find_element
-                let check = format!(
-                    "document.querySelector({sel:?}) !== null"
+            for css in css_candidates(role, name) {
+                let js = format!(
+                    "(function() {{ \
+                        var el = document.querySelector({css:?}); \
+                        if (!el) return false; \
+                        {js_action}; \
+                        return true; \
+                    }})()"
                 );
-                if let Ok(val) = self.page.evaluate_on_frame(&frame, &check).await {
-                    if val.value().and_then(|v| v.as_bool()).unwrap_or(false) {
-                        if let Ok(el) = self.page.find_element_in_frame(&frame, sel).await {
-                            return Ok(el);
+
+                let params = EvaluateParams::builder()
+                    .expression(js)
+                    .context_id(ctx_id.clone())
+                    .build()
+                    .map_err(|e| anyhow::anyhow!(e))?;
+
+                match self.page.evaluate_expression(params).await {
+                    Ok(result) => {
+                        let found = result
+                            .value()
+                            .and_then(|v: &serde_json::Value| v.as_bool())
+                            .unwrap_or(false);
+                        if found {
+                            tracing::debug!(
+                                "exec_in_frames [{role}] \"{name}\" via css={css:?} in frame"
+                            );
+                            return Ok(());
                         }
+                    }
+                    Err(e) => {
+                        tracing::debug!("frame eval error for [{role}] \"{name}\": {e}");
                     }
                 }
             }
         }
+
         anyhow::bail!("not found in any frame")
     }
 }
 
-/// Generate a ranked list of XPath expressions for a role+name pair.
-/// Each expression is a single path (no `|` union) so find_xpath handles it correctly.
-/// We try more specific expressions first and fall back to broader ones.
+/// CSS selectors ranked by specificity for a given role+name.
+fn css_candidates(role: &str, name: &str) -> Vec<String> {
+    if name.is_empty() {
+        return vec![format!("[role='{role}']")];
+    }
+
+    // CSS attribute selectors don't need XPath-style escaping
+    let n = name.replace('"', "\\\"");
+
+    match role {
+        "button" | "menuitem" => vec![
+            format!("button[aria-label=\"{n}\"]"),
+            format!("input[type='submit'][value=\"{n}\"]"),
+            format!("input[type='button'][value=\"{n}\"]"),
+            format!("[role='button'][aria-label=\"{n}\"]"),
+        ],
+        "link" => vec![
+            format!("a[aria-label=\"{n}\"]"),
+            format!("[role='link'][aria-label=\"{n}\"]"),
+        ],
+        "textbox" | "searchbox" => vec![
+            format!("input[placeholder=\"{n}\"]"),
+            format!("input[aria-label=\"{n}\"]"),
+            format!("input[name=\"{n}\"]"),
+            format!("textarea[placeholder=\"{n}\"]"),
+            format!("textarea[aria-label=\"{n}\"]"),
+            format!("[role='textbox'][aria-label=\"{n}\"]"),
+        ],
+        "checkbox" => vec![
+            format!("input[type='checkbox'][aria-label=\"{n}\"]"),
+            format!("[role='checkbox'][aria-label=\"{n}\"]"),
+        ],
+        "radio" => vec![
+            format!("input[type='radio'][aria-label=\"{n}\"]"),
+            format!("input[type='radio'][value=\"{n}\"]"),
+        ],
+        "combobox" | "listbox" => vec![
+            format!("select[aria-label=\"{n}\"]"),
+            format!("select[name=\"{n}\"]"),
+            format!("[role='combobox'][aria-label=\"{n}\"]"),
+        ],
+        "tab" => vec![
+            format!("[role='tab'][aria-label=\"{n}\"]"),
+        ],
+        _ => vec![
+            format!("[role='{role}'][aria-label=\"{n}\"]"),
+        ],
+    }
+}
+
+/// XPath expressions ranked by specificity. Each is a single path — no `|` unions,
+/// which cause chromiumoxide to return `Invalid search result range`.
 fn xpath_candidates(role: &str, name: &str) -> Vec<String> {
     if name.is_empty() {
         return vec![format!("//*[@role='{role}']")];
@@ -145,15 +268,12 @@ fn xpath_candidates(role: &str, name: &str) -> Vec<String> {
             format!("//input[@placeholder='{n}']"),
             format!("//input[@aria-label='{n}']"),
             format!("//input[@name='{n}']"),
-            format!("//input[@id='{n}']"),
             format!("//textarea[@placeholder='{n}']"),
             format!("//textarea[@aria-label='{n}']"),
             format!("//*[@role='textbox' and @aria-label='{n}']"),
-            format!("//*[@role='textbox' and @placeholder='{n}']"),
         ],
         "checkbox" => vec![
             format!("//input[@type='checkbox' and @aria-label='{n}']"),
-            format!("//input[@type='checkbox' and @id='{n}']"),
             format!("//*[@role='checkbox' and @aria-label='{n}']"),
         ],
         "radio" => vec![
@@ -176,13 +296,10 @@ fn xpath_candidates(role: &str, name: &str) -> Vec<String> {
     }
 }
 
-/// Escape a string for use inside an XPath string literal.
-/// XPath has no escape sequences, so we handle single quotes by concatenation.
 fn escape_xpath(s: &str) -> String {
     if !s.contains('\'') {
         return s.to_string();
     }
-    // Split on ' and join with concat(...) — XPath has no escape sequences
     let parts: String = s
         .split('\'')
         .map(|p| format!("'{p}'"))
