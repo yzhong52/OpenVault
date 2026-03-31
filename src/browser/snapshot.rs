@@ -1,34 +1,35 @@
 use anyhow::Result;
-use chromiumoxide::cdp::browser_protocol::accessibility::{
-    AxNode, GetFullAxTreeParams,
-};
+use chromiumoxide::cdp::browser_protocol::accessibility::{AxNode, GetFullAxTreeParams};
 use chromiumoxide::Page;
+use std::collections::HashMap;
 
-/// A compact accessibility snapshot of the current page, formatted for LLM consumption.
+/// Metadata for a single node, keyed by ref (@e1, @e2, ...).
+#[derive(Debug, Clone)]
+pub struct NodeInfo {
+    pub role: String,
+    pub name: String,
+}
+
 pub struct AccessibilitySnapshot {
     pub text: String,
     pub node_count: usize,
+    pub refs: HashMap<String, NodeInfo>,
 }
 
 impl AccessibilitySnapshot {
     pub async fn capture(page: &Page) -> Result<Self> {
-        let result = page
-            .execute(GetFullAxTreeParams::default())
-            .await?;
-
+        let result = page.execute(GetFullAxTreeParams::default()).await?;
         let nodes = result.nodes.clone();
         let node_count = nodes.len();
-        let text = format_tree(&nodes);
-
-        Ok(Self { text, node_count })
+        let (text, refs) = format_tree(&nodes);
+        Ok(Self { text, node_count, refs })
     }
 }
 
-/// Format the AX tree into a compact text representation.
-/// Only includes nodes that are visible and have a meaningful role.
-fn format_tree(nodes: &[AxNode]) -> String {
+fn format_tree(nodes: &[AxNode]) -> (String, HashMap<String, NodeInfo>) {
     let mut lines = Vec::new();
-    let mut ref_counter = 1usize;
+    let mut refs = HashMap::new();
+    let mut counter = 1usize;
 
     for node in nodes {
         let role = match &node.role {
@@ -36,7 +37,6 @@ fn format_tree(nodes: &[AxNode]) -> String {
             None => continue,
         };
 
-        // Skip non-interactive, non-content roles
         if matches!(
             role,
             "none" | "presentation" | "generic" | "group" | "InlineTextBox"
@@ -56,8 +56,10 @@ fn format_tree(nodes: &[AxNode]) -> String {
             continue;
         }
 
-        let ref_id = format!("@e{}", ref_counter);
-        ref_counter += 1;
+        let ref_id = format!("@e{counter}");
+        counter += 1;
+
+        refs.insert(ref_id.clone(), NodeInfo { role: role.to_string(), name: name.clone() });
 
         if name.is_empty() {
             lines.push(format!("[{role} {ref_id}]"));
@@ -66,24 +68,14 @@ fn format_tree(nodes: &[AxNode]) -> String {
         }
     }
 
-    lines.join("\n")
+    (lines.join("\n"), refs)
 }
 
 fn is_interactive(role: &str) -> bool {
     matches!(
         role,
-        "button"
-            | "link"
-            | "textbox"
-            | "checkbox"
-            | "radio"
-            | "combobox"
-            | "listbox"
-            | "menuitem"
-            | "option"
-            | "tab"
-            | "searchbox"
-            | "spinbutton"
-            | "switch"
+        "button" | "link" | "textbox" | "checkbox" | "radio" | "combobox"
+            | "listbox" | "menuitem" | "option" | "tab" | "searchbox"
+            | "spinbutton" | "switch"
     )
 }

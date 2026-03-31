@@ -1,5 +1,5 @@
 use crate::browser::Session;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -25,19 +25,21 @@ pub async fn execute(call: &ToolCall, session: &Session) -> Result<ToolResult> {
 
         "click" => {
             let ref_id = call.input["ref"].as_str().unwrap_or("");
-            // Resolve @eN ref to an accessibility node backend ID, then click via CDP.
-            // For now, fall back to aria selector heuristic.
-            let selector = ref_to_selector(ref_id);
-            actions.click(&selector).await?;
-            format!("clicked {ref_id}")
+            let node = session
+                .resolve_ref(ref_id)
+                .with_context(|| format!("unknown ref {ref_id} — take a snapshot first"))?;
+            actions.click_by_role_name(&node.role, &node.name).await?;
+            format!("clicked {ref_id} ({} \"{}\")", node.role, node.name)
         }
 
         "type_text" => {
             let ref_id = call.input["ref"].as_str().unwrap_or("");
             let text = call.input["text"].as_str().unwrap_or("");
-            let selector = ref_to_selector(ref_id);
-            actions.type_text(&selector, text).await?;
-            format!("typed into {ref_id}")
+            let node = session
+                .resolve_ref(ref_id)
+                .with_context(|| format!("unknown ref {ref_id} — take a snapshot first"))?;
+            actions.type_by_role_name(&node.role, &node.name, text).await?;
+            format!("typed into {ref_id} ({} \"{}\")", node.role, node.name)
         }
 
         "snapshot" => {
@@ -50,23 +52,10 @@ pub async fn execute(call: &ToolCall, session: &Session) -> Result<ToolResult> {
             "MFA complete — resuming".to_string()
         }
 
-        "done" => {
-            let result = call.input["result"].as_str().unwrap_or("done").to_string();
-            result
-        }
+        "done" => call.input["result"].as_str().unwrap_or("done").to_string(),
 
-        unknown => {
-            anyhow::bail!("unknown tool: {unknown}")
-        }
+        unknown => anyhow::bail!("unknown tool: {unknown}"),
     };
 
     Ok(ToolResult { output })
-}
-
-/// Temporary: convert @eN ref to a positional CSS/aria selector.
-/// Phase 2 will use proper AX node backend IDs from the snapshot.
-fn ref_to_selector(ref_id: &str) -> String {
-    // Strip the @ prefix — callers will need proper ref→node mapping once
-    // we wire up AccessibilitySnapshot to return backend node IDs.
-    ref_id.trim_start_matches('@').to_string()
 }

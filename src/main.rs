@@ -22,16 +22,26 @@ async fn main() -> Result<()> {
         Commands::Sync { institution } => {
             let database = db::Database::open()?;
             let connector = connectors::get(&institution)?;
-            let session = browser::Session::launch().await?;
             let creds = credentials::load(&institution)?;
+            let session = browser::Session::launch().await?;
 
+            let log_id = database.log_sync_start(&institution)?;
             println!("[openvault] syncing {}...", institution);
-            let transactions = connector.run(&session, creds).await?;
-            let count = transactions.len();
-            database.insert_transactions(transactions)?;
-            session.close().await?;
 
-            println!("[openvault] stored {} transactions from {}", count, institution);
+            match connector.run(&session, creds).await {
+                Ok(transactions) => {
+                    let count = transactions.len();
+                    database.insert_transactions(transactions)?;
+                    database.log_sync_finish(log_id, "success", None)?;
+                    session.close().await?;
+                    println!("[openvault] stored {count} transactions from {institution}");
+                }
+                Err(e) => {
+                    database.log_sync_finish(log_id, "failed", Some(&e.to_string()))?;
+                    session.close().await.ok();
+                    return Err(e);
+                }
+            }
         }
 
         Commands::List { institution, days } => {
