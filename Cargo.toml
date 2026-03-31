@@ -28,7 +28,7 @@ clap = { version = "4", features = ["derive"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 
 # Credential store (OS keychain)
-keyring = "3"
+keyring = { version = "3", features = ["apple-native"] }
 
 # Error handling
 anyhow = "1"
