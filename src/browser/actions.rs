@@ -76,6 +76,29 @@ impl<'a> BrowserActions<'a> {
     /// Dump all inputs, textareas, and buttons across every frame.
     /// Returns a JSON-like string showing tag + all attributes for each element.
     /// Used to diagnose why click/type_text can't find an element.
+    ///
+    /// # What is a frame?
+    ///
+    /// A **frame** is a self-contained browsing context within the page. Every tab
+    /// has at least one frame (the main frame). Additional frames are created by
+    /// `<iframe>` elements and each gets its own `document`, DOM, and JS execution context.
+    ///
+    /// ```text
+    /// easyweb.td.com          ← main frame
+    /// ├── <nav>...</nav>
+    /// ├── <div>login widget</div>   ← regular DOM, still main frame
+    /// └── <iframe src="ads.td.com"> ← separate frame (different origin)
+    /// ```
+    ///
+    /// **Why this matters for element targeting:**
+    /// The accessibility tree (`GetFullAxTree`) traverses *across* all frames, so the
+    /// agent sees elements from every frame in one flat list. But DOM queries
+    /// (`querySelector`, `find_xpath`) are scoped to a single frame's `document`.
+    /// Cross-origin iframes also block JS access entirely via browser security policy.
+    ///
+    /// This method evaluates the same JS snippet in each frame's execution context
+    /// separately, labelling the output per frame so you can see exactly which frame
+    /// an element lives in and what attributes it has.
     pub async fn dump_frames(&self) -> Result<String> {
         let js = r#"
             (function() {
@@ -93,7 +116,7 @@ impl<'a> BrowserActions<'a> {
         let frames = self.page.frames().await?;
         let mut out = Vec::new();
 
-        // Main frame
+        // Main frame — evaluate directly on the page (no contextId needed).
         match self.page.evaluate_expression(js).await {
             Ok(r) => {
                 if let Some(v) = r.value() {
@@ -103,7 +126,9 @@ impl<'a> BrowserActions<'a> {
             Err(e) => out.push(format!("=== main frame error: {e} ===")),
         }
 
-        // Iframes
+        // Iframes — each frame has its own ExecutionContextId; we must pass it
+        // explicitly so Runtime.evaluate runs inside that frame's document.
+        // Cross-origin frames may return an error or empty result (security policy).
         for (i, frame_id) in frames.iter().enumerate() {
             if let Ok(Some(ctx)) = self.page.frame_execution_context(frame_id.clone()).await {
                 let params = EvaluateParams::builder()
