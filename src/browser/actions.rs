@@ -1,3 +1,4 @@
+use crate::browser::snapshot::AccessibilitySnapshot;
 use anyhow::{Context, Result};
 use chromiumoxide::cdp::js_protocol::runtime::EvaluateParams;
 use chromiumoxide::Page;
@@ -73,84 +74,32 @@ impl<'a> BrowserActions<'a> {
             .with_context(|| format!("could not find [{role}] \"{name}\" in main doc or any iframe"))
     }
 
-    /// Dump all inputs, textareas, and buttons across every frame.
-    /// Returns a JSON-like string showing tag + all attributes for each element.
-    /// Used to diagnose why click/type_text can't find an element.
+    /// Dump the page as a compact accessibility tree snapshot.
     ///
-    /// # What is a frame?
+    /// Uses `GetFullAxTree` (CDP) which traverses *all* frames — including
+    /// iframes — in a single call, returning a flat list of semantic nodes.
+    /// The result is filtered and formatted by [`format_ax_tree`] into
+    /// token-efficient text (e.g. 431 raw nodes → ~30 lines).
     ///
-    /// A **frame** is a self-contained browsing context within the page. Every tab
-    /// has at least one frame (the main frame). Additional frames are created by
-    /// `<iframe>` elements and each gets its own `document`, DOM, and JS execution context.
+    /// # Frames and iframes
+    ///
+    /// A **frame** is a self-contained browsing context. Every tab has at
+    /// least one (the main frame); `<iframe>` elements create additional ones,
+    /// each with its own `document` and JS execution context.
     ///
     /// ```text
-    /// easyweb.td.com          ← main frame
+    /// easyweb.td.com            ← main frame
     /// ├── <nav>...</nav>
-    /// ├── <div>login widget</div>   ← regular DOM, still main frame
+    /// ├── <div>login widget</div>  ← regular DOM, still main frame
     /// └── <iframe src="ads.td.com"> ← separate frame (different origin)
     /// ```
     ///
-    /// **Why this matters for element targeting:**
-    /// The accessibility tree (`GetFullAxTree`) traverses *across* all frames, so the
-    /// agent sees elements from every frame in one flat list. But DOM queries
-    /// (`querySelector`, `find_xpath`) are scoped to a single frame's `document`.
-    /// Cross-origin iframes also block JS access entirely via browser security policy.
-    ///
-    /// This method evaluates the same JS snippet in each frame's execution context
-    /// separately, labelling the output per frame so you can see exactly which frame
-    /// an element lives in and what attributes it has.
+    /// DOM queries (`querySelector`, `find_xpath`) are scoped to one frame.
+    /// The AX tree is not — it spans all of them, which is why this method
+    /// produces a complete view of the page without per-frame JS evaluation.
     pub async fn dump_frames(&self) -> Result<String> {
-        let js = r#"
-            (function() {
-                var els = document.querySelectorAll('input, textarea, button, a, [role]');
-                return Array.from(els).map(function(el) {
-                    var attrs = {};
-                    for (var i = 0; i < el.attributes.length; i++) {
-                        attrs[el.attributes[i].name] = el.attributes[i].value;
-                    }
-                    return JSON.stringify({ tag: el.tagName.toLowerCase(), attrs: attrs, text: (el.innerText || '').trim().slice(0, 80) });
-                }).join('\n');
-            })()
-        "#;
-
-        let frames = self.page.frames().await?;
-        let mut out = Vec::new();
-
-        // Main frame — evaluate directly on the page (no contextId needed).
-        match self.page.evaluate_expression(js).await {
-            Ok(r) => {
-                if let Some(v) = r.value() {
-                    out.push(format!("=== main frame ===\n{}", v.as_str().unwrap_or("")));
-                }
-            }
-            Err(e) => out.push(format!("=== main frame error: {e} ===")),
-        }
-
-        // Iframes — each frame has its own ExecutionContextId; we must pass it
-        // explicitly so Runtime.evaluate runs inside that frame's document.
-        // Cross-origin frames may return an error or empty result (security policy).
-        for (i, frame_id) in frames.iter().enumerate() {
-            if let Ok(Some(ctx)) = self.page.frame_execution_context(frame_id.clone()).await {
-                let params = EvaluateParams::builder()
-                    .expression(js)
-                    .context_id(ctx)
-                    .build()
-                    .map_err(|e| anyhow::anyhow!(e))?;
-                match self.page.evaluate_expression(params).await {
-                    Ok(r) => {
-                        if let Some(v) = r.value() {
-                            let s = v.as_str().unwrap_or("").trim().to_string();
-                            if !s.is_empty() {
-                                out.push(format!("=== frame {i} ===\n{s}"));
-                            }
-                        }
-                    }
-                    Err(e) => out.push(format!("=== frame {i} error: {e} ===")),
-                }
-            }
-        }
-
-        Ok(out.join("\n\n"))
+        let snap = AccessibilitySnapshot::capture(self.page).await?;
+        Ok(snap.text)
     }
 
     /// Pause and wait for the user to press Enter in the terminal (e.g. after MFA).
