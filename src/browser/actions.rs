@@ -192,6 +192,8 @@ fn css_candidates(role: &str, name: &str) -> Vec<String> {
             format!("textarea[placeholder=\"{n}\"]"),
             format!("textarea[aria-label=\"{n}\"]"),
             format!("[role='textbox'][aria-label=\"{n}\"]"),
+            // Type-based fallback for password fields (see xpath_candidates for rationale).
+            format!("input[type='password']"),
         ],
         "checkbox" => vec![
             format!("input[type='checkbox'][aria-label=\"{n}\"]"),
@@ -251,10 +253,16 @@ fn xpath_candidates(role: &str, name: &str) -> Vec<String> {
             format!("//input[contains(@aria-describedby, 'label') and //label[contains(normalize-space(.), '{n}')]]"),
             format!("//label[contains(normalize-space(.), '{n}')]/..//input[not(@type='hidden')]"),
             format!("//label[contains(normalize-space(.), '{n}')]/following::input[1][not(@type='hidden')]"),
+            // Type-based fallback for password fields: input[type='password'] has no
+            // accessible attributes to match against — its AX name comes solely from
+            // the label text, which may not correlate with any input attribute.
+            format!("//input[@type='password']"),
         ],
         "checkbox" => vec![
             format!("//input[@type='checkbox' and @aria-label='{n}']"),
             format!("//*[@role='checkbox' and @aria-label='{n}']"),
+            format!("//input[@type='checkbox' and @id=//label[contains(normalize-space(.), '{n}')]/@for]"),
+            format!("//label[contains(normalize-space(.), '{n}')]/..//input[@type='checkbox']"),
         ],
         "radio" => vec![
             format!("//input[@type='radio' and @aria-label='{n}']"),

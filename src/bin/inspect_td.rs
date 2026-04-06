@@ -4,6 +4,7 @@ use anyhow::Result;
 use chromiumoxide::{Browser, BrowserConfig};
 use futures::StreamExt;
 use openvault::browser::BrowserActions;
+use rpassword;
 use std::fs;
 use std::path::Path;
 
@@ -22,6 +23,10 @@ async fn main() -> Result<()> {
     let (mut browser, mut handler) = Browser::launch(
         BrowserConfig::builder()
             .with_head()
+            // Disable CDP viewport emulation so the page fills the actual window.
+            // Without this, chromiumoxide forces an 800x600 viewport regardless of
+            // window size, leaving blank space around the rendered content.
+            .viewport(None)
             .args([
                 "--no-first-run",
                 "--no-default-browser-check",
@@ -56,6 +61,46 @@ async fn main() -> Result<()> {
     fs::write(out_path, &dump)?;
 
     println!("saved to {}", out_path.display());
+
+    println!("typing into username field...");
+    actions
+        .type_by_role_name("textbox", "Username or Access Card", "yuchen_zhong")
+        .await?;
+
+    let password = std::env::var("OPENVAULT_TD_PASSWORD")
+        .unwrap_or_else(|_| rpassword::prompt_password("Password: ").unwrap());
+    actions
+        .type_by_role_name("textbox", "Password", &password)
+        .await?;
+    let first = password.chars().next().unwrap_or('?');
+    let last = password.chars().last().unwrap_or('?');
+    println!("password: {first}***{last} ({} chars)", password.len());
+
+    actions.click_by_role_name("button", "Login").await?;
+
+    // Give the page a moment to load the MFA screen.
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+    println!("taking MFA page snapshot...");
+    let mfa_dump = actions.dump_frames().await?;
+    fs::write(Path::new("logs/td_mfa.txt"), &mfa_dump)?;
+    println!("saved to logs/td_mfa.txt");
+
+    // Wait for user to complete MFA in the browser.
+    println!("complete MFA in the browser, then press Enter...");
+    let _ = std::io::stdin().read_line(&mut String::new());
+
+    // Give the SPA a moment to finish rendering after MFA redirect.
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+    println!("taking post-login snapshot...");
+    let post_login_dump = actions.dump_frames().await?;
+    let post_login_path = Path::new("logs/td_post_login.txt");
+    fs::write(post_login_path, &post_login_dump)?;
+    println!("saved to {}", post_login_path.display());
+
+    println!("press Enter to close...");
+    let _ = std::io::stdin().read_line(&mut String::new());
 
     browser.close().await?;
     browser.wait().await?;
