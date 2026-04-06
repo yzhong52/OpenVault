@@ -10,7 +10,13 @@ use std::path::Path;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter("warn")
+        // Filter format: "global_level,module=level,..."
+        // - "warn"                        → show WARN+ from all modules by default
+        // - "chromiumoxide::handler=error" → override that module to ERROR+ only,
+        //   suppressing its "WS Invalid message" WARNs. These fire because Chrome
+        //   sends CDP event types that chromiumoxide's generated types don't yet cover;
+        //   the handler skips them safely, so the noise isn't actionable.
+        .with_env_filter("warn,chromiumoxide::handler=error")
         .init();
 
     let (mut browser, mut handler) = Browser::launch(
