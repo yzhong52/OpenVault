@@ -11,6 +11,10 @@ path = "src/main.rs"
 name = "inspect_td"
 path = "src/bin/inspect_td.rs"
 
+[[bin]]
+name = "inspect_wealthsimple"
+path = "src/bin/inspect_wealthsimple.rs"
+
 [lib]
 name = "openvault"
 path = "src/lib.rs"
