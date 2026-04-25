@@ -1,8 +1,15 @@
-import { chromium } from 'playwright';
+import { chromium, type Page } from 'playwright';
 import * as fs from 'fs/promises';
 import * as readline from 'readline';
 
 const LOGIN_URL = 'https://my.wealthsimple.com/app/login?locale=en-ca';
+
+// Captures the page's accessibility tree and saves it to logs/ws_<label>.txt.
+async function snap(page: Page, label: string): Promise<void> {
+  const tree = await page.locator('body').ariaSnapshot();
+  await fs.writeFile(`logs/ws_${label}.txt`, tree);
+  console.log(`saved logs/ws_${label}.txt`);
+}
 
 function prompt(question: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -15,14 +22,8 @@ async function main() {
 
   await fs.mkdir('logs', { recursive: true });
 
-  const snap = async (label: string) => {
-    const tree = await page.locator('body').ariaSnapshot();
-    await fs.writeFile(`logs/ws_${label}.txt`, tree);
-    console.log(`saved logs/ws_${label}.txt`);
-  };
-
   await page.goto(LOGIN_URL, { waitUntil: 'load' });
-  await snap('login');
+  await snap(page, 'login');
 
   const alreadyLoggedIn = !(await page.getByRole('textbox', { name: /Log in email/i })
     .isVisible({ timeout: 2000 }).catch(() => false));
@@ -45,7 +46,7 @@ async function main() {
       .isVisible({ timeout: 3000 }).catch(() => false);
 
     if (needsMfa) {
-      await snap('mfa');
+      await snap(page, 'mfa');
       const otp = await prompt('Enter 6-digit verification code: ');
       await page.getByRole('textbox', { name: /Enter your code/i }).fill(otp.trim());
       await page.getByRole('button', { name: /Submit/i }).click();
@@ -53,7 +54,7 @@ async function main() {
     }
   }
 
-  await snap('dashboard');
+  await snap(page, 'dashboard');
 
   await prompt('Press Enter to close... ');
   await browser.close();
