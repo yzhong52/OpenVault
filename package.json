@@ -3,19 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "inspect:td": "tsx src/bin/inspect_td.ts",
-    "inspect:qt": "tsx src/bin/inspect_questrade.ts",
-    "inspect:ws": "tsx src/bin/inspect_wealthsimple.ts"
+    "wealthsimple": "tsx src/wealthsimple.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.54.0",
-    "better-sqlite3": "^11.9.0",
-    "commander": "^13.0.0",
-    "keytar": "^7.9.0",
     "playwright": "^1.52.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
