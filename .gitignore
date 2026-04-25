@@ -1,2 +1,13 @@
+# Rust (legacy)
 /target
+/v0/target
+
+# TypeScript
+node_modules/
+dist/
+
+# Logs & runtime output
 /logs
+
+# Environment
+.env
