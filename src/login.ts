@@ -189,13 +189,15 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     const toolUse = response.content.find(b => b.type === 'tool_use');
     if (!toolUse || toolUse.type !== 'tool_use') break;
 
-    console.log(`agent: ${toolUse.name}`, toolUse.input);
+    console.log(`[tool] ${toolUse.name}`, toolUse.input);
 
     const { output, done } = await executeTool(
       toolUse.name,
       toolUse.input as Record<string, string>,
       page,
     );
+
+    console.log(`[tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
 
     messages.push({
       role: 'user',
