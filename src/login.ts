@@ -186,23 +186,32 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
 
     messages.push({ role: 'assistant', content: response.content });
 
-    const toolUse = response.content.find(b => b.type === 'tool_use');
-    if (!toolUse || toolUse.type !== 'tool_use') break;
+    const toolUses = response.content.filter(b => b.type === 'tool_use');
+    if (toolUses.length === 0) break;
 
-    console.log(`[tool] ${toolUse.name}`, toolUse.input);
+    // Execute every tool_use and collect results — the API requires one
+    // tool_result per tool_use in the next message, no exceptions.
+    const toolResults: { type: 'tool_result'; tool_use_id: string; content: string }[] = [];
+    let done = false;
 
-    const { output, done } = await executeTool(
-      toolUse.name,
-      toolUse.input as Record<string, string>,
-      page,
-    );
+    for (const toolUse of toolUses) {
+      if (toolUse.type !== 'tool_use') continue;
 
-    console.log(`[tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
+      console.log(`[tool] ${toolUse.name}`, toolUse.input);
 
-    messages.push({
-      role: 'user',
-      content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: output }],
-    });
+      const { output, done: toolDone } = await executeTool(
+        toolUse.name,
+        toolUse.input as Record<string, string>,
+        page,
+      );
+
+      console.log(`[tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
+
+      toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
+      if (toolDone) { done = true; break; }
+    }
+
+    messages.push({ role: 'user', content: toolResults });
 
     if (done) {
       console.log('agent: login complete');
