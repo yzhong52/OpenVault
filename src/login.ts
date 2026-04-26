@@ -199,11 +199,17 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
 
       console.log(`[tool] ${toolUse.name}`, toolUse.input);
 
-      const { output, done: toolDone } = await executeTool(
-        toolUse.name,
-        toolUse.input as Record<string, string>,
-        page,
-      );
+      let output: string;
+      let toolDone = false;
+      try {
+        ({ output, done: toolDone } = await executeTool(
+          toolUse.name,
+          toolUse.input as Record<string, string>,
+          page,
+        ));
+      } catch (err) {
+        output = `error: ${err instanceof Error ? err.message : String(err)}`;
+      }
 
       console.log(`[tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
 
