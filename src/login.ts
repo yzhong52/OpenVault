@@ -49,14 +49,24 @@ see the updated page state before deciding what to do next.`;
 // Tools
 // ---------------------------------------------------------------------------
 
+const TOOL = {
+  SNAPSHOT:         'snapshot',
+  FILL:             'fill',
+  TYPE:             'type',
+  CLICK:            'click',
+  CLICK_TESTID:     'click_testid',
+  REQUEST_MFA_CODE: 'request_mfa_code',
+  SUCCESS:          'success',
+} as const;
+
 const TOOLS: Tool[] = [
   {
-    name: 'snapshot',
+    name: TOOL.SNAPSHOT,
     description: 'Return the current page accessibility tree. Call this after any navigation or click to see updated state.',
     input_schema: { type: 'object', properties: {} },
   },
   {
-    name: 'fill',
+    name: TOOL.FILL,
     description: 'Fill a form field identified by its ARIA role and accessible name.',
     input_schema: {
       type: 'object',
@@ -69,7 +79,7 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'type',
+    name: TOOL.TYPE,
     description: 'Type text into a field character-by-character, firing real key events. Use this instead of fill for OTP / verification code fields where key events are required to enable the submit button.',
     input_schema: {
       type: 'object',
@@ -82,7 +92,7 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'click',
+    name: TOOL.CLICK,
     description: 'Click an element identified by its ARIA role and accessible name.',
     input_schema: {
       type: 'object',
@@ -94,7 +104,7 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'click_testid',
+    name: TOOL.CLICK_TESTID,
     description: 'Click an element by its data-testid attribute. Use this when click fails with a strict mode violation (multiple elements matched).',
     input_schema: {
       type: 'object',
@@ -105,7 +115,7 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'request_mfa_code',
+    name: TOOL.REQUEST_MFA_CODE,
     description: 'Pause and ask the user to provide an MFA / verification code. Returns the code the user entered.',
     input_schema: {
       type: 'object',
@@ -116,7 +126,7 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'success',
+    name: TOOL.SUCCESS,
     description: 'Signal that login is complete and the dashboard is visible. Call this as soon as you can see the account overview.',
     input_schema: { type: 'object', properties: {} },
   },
@@ -132,24 +142,24 @@ async function executeTool(
   page: Page,
 ): Promise<{ output: string; done: boolean }> {
   switch (name) {
-    case 'snapshot': {
+    case TOOL.SNAPSHOT: {
       const tree = await page.locator('body').ariaSnapshot();
       return { output: tree, done: false };
     }
 
-    case 'fill': {
+    case TOOL.FILL: {
       const role = input.role as Parameters<typeof page.getByRole>[0];
       await page.getByRole(role, { name: input.name }).fill(input.value);
       return { output: `filled ${input.role} "${input.name}"`, done: false };
     }
 
-    case 'type': {
+    case TOOL.TYPE: {
       const role = input.role as Parameters<typeof page.getByRole>[0];
       await page.getByRole(role, { name: input.name }).pressSequentially(input.value);
       return { output: `typed into ${input.role} "${input.name}"`, done: false };
     }
 
-    case 'click': {
+    case TOOL.CLICK: {
       const role = input.role as Parameters<typeof page.getByRole>[0];
       await page.getByRole(role, { name: input.name }).click();
       // Use a short timeout — SPA navigation won't fire a full 'load' event.
@@ -157,18 +167,18 @@ async function executeTool(
       return { output: `clicked ${input.role} "${input.name}"`, done: false };
     }
 
-    case 'click_testid': {
+    case TOOL.CLICK_TESTID: {
       await page.getByTestId(input.testId).click();
       await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
       return { output: `clicked [data-testid="${input.testId}"]`, done: false };
     }
 
-    case 'request_mfa_code': {
+    case TOOL.REQUEST_MFA_CODE: {
       const code = await promptUser(`\n${input.instructions}\nCode: `);
       return { output: code.trim(), done: false };
     }
 
-    case 'success':
+    case TOOL.SUCCESS:
       return { output: 'login complete', done: true };
 
     default:
