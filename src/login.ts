@@ -140,23 +140,21 @@ async function executeTool(
   name: string,
   input: Record<string, string>,
   page: Page,
-): Promise<{ output: string; done: boolean }> {
+): Promise<string> {
   switch (name) {
-    case TOOL.SNAPSHOT: {
-      const tree = await page.locator('body').ariaSnapshot();
-      return { output: tree, done: false };
-    }
+    case TOOL.SNAPSHOT:
+      return page.locator('body').ariaSnapshot();
 
     case TOOL.FILL: {
       const role = input.role as Parameters<typeof page.getByRole>[0];
       await page.getByRole(role, { name: input.name }).fill(input.value);
-      return { output: `filled ${input.role} "${input.name}"`, done: false };
+      return `filled ${input.role} "${input.name}"`;
     }
 
     case TOOL.TYPE: {
       const role = input.role as Parameters<typeof page.getByRole>[0];
       await page.getByRole(role, { name: input.name }).pressSequentially(input.value);
-      return { output: `typed into ${input.role} "${input.name}"`, done: false };
+      return `typed into ${input.role} "${input.name}"`;
     }
 
     case TOOL.CLICK: {
@@ -164,25 +162,22 @@ async function executeTool(
       await page.getByRole(role, { name: input.name }).click();
       // Use a short timeout — SPA navigation won't fire a full 'load' event.
       await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
-      return { output: `clicked ${input.role} "${input.name}"`, done: false };
+      return `clicked ${input.role} "${input.name}"`;
     }
 
     case TOOL.CLICK_TESTID: {
       await page.getByTestId(input.testId).click();
       await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
-      return { output: `clicked [data-testid="${input.testId}"]`, done: false };
+      return `clicked [data-testid="${input.testId}"]`;
     }
 
     case TOOL.REQUEST_MFA_CODE: {
       const code = await promptUser(`\n${input.instructions}\nCode: `);
-      return { output: code.trim(), done: false };
+      return code.trim();
     }
 
-    case TOOL.SUCCESS:
-      return { output: 'login complete', done: true };
-
     default:
-      return { output: `unknown tool: ${name}`, done: false };
+      return `unknown tool: ${name}`;
   }
 }
 
@@ -191,7 +186,7 @@ async function executeTool(
 // ---------------------------------------------------------------------------
 
 const MODEL = 'claude-sonnet-4-6';
-const MAX_TURNS = 30;
+const MAX_TURNS = 10;
 
 async function login(page: Page, url: string, creds: Credentials): Promise<void> {
   const client = new Anthropic();  // reads ANTHROPIC_API_KEY from env
@@ -224,7 +219,10 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
       messages,
     });
 
-    messages.push({ role: 'assistant', content: response.content });
+    messages.push({
+      role: 'assistant', // record what Claude said
+      content: response.content,
+    });
 
     const toolUses = response.content.filter(b => b.type === 'tool_use');
     if (toolUses.length === 0) break;
@@ -237,14 +235,21 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     for (const toolUse of toolUses) {
       console.log(`[tool] ${toolUse.name}`, toolUse.input);
 
+      // tool_choice 'any' forces Claude to always call a tool, so success is the
+      // only way Claude can explicitly signal it's done rather than just stopping.
+      if (toolUse.name === TOOL.SUCCESS) {
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: 'login complete' });
+        done = true;
+        break;
+      }
+
       let output: string;
-      let toolDone = false;
       try {
-        ({ output, done: toolDone } = await executeTool(
+        output = await executeTool(
           toolUse.name,
           toolUse.input as Record<string, string>,
           page,
-        ));
+        );
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
       }
@@ -253,10 +258,12 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
       if (DEBUG) await sleep(1000);
 
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
-      if (toolDone) { done = true; break; }
     }
 
-    messages.push({ role: 'user', content: toolResults });
+    messages.push({
+      role: 'user', // tool results come from us (the environment), not Claude
+      content: toolResults,
+    });
 
     if (done) {
       console.log('agent: login complete');
