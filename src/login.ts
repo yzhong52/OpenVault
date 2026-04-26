@@ -15,10 +15,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
 interface Credentials {
   email: string;
   password: string;
@@ -200,6 +196,7 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     },
   ];
 
+  const systemPrompt = buildSystemPrompt(creds);
   console.log('agent: starting login...');
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -211,7 +208,7 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: buildSystemPrompt(creds),
+      system: systemPrompt,
       tools: TOOLS,
       tool_choice: { type: 'any' },
       messages,
@@ -228,8 +225,6 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     let done = false;
 
     for (const toolUse of toolUses) {
-      if (toolUse.type !== 'tool_use') continue;
-
       console.log(`[tool] ${toolUse.name}`, toolUse.input);
 
       let output: string;
@@ -271,10 +266,11 @@ function promptUser(question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans); }));
 }
 
-async function snap(page: Page, label: string): Promise<void> {
+async function snap(page: Page, label: string, prefix = 'ws'): Promise<void> {
   const tree = await page.locator('body').ariaSnapshot();
-  await fs.writeFile(`logs/ws_${label}.txt`, tree);
-  console.log(`saved logs/ws_${label}.txt`);
+  const path = `logs/${prefix}_${label}.txt`;
+  await fs.writeFile(path, tree);
+  console.log(`saved ${path}`);
 }
 
 // ---------------------------------------------------------------------------
