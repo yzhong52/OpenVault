@@ -25,16 +25,36 @@ Credentials are read from env vars; the script prompts interactively if not set:
 
 ## Architecture of login.ts
 
-The agent loop in `login()` sends the accessibility snapshot to Claude, executes the returned tool calls, feeds results back, and repeats until Claude calls `success`.
+Instead of scraping HTML, OpenVault reads the page's ARIA accessibility tree after each action. This is far more compact than raw HTML and more stable than CSS selectors — elements are targeted by what they *are*, not where they happen to sit in the DOM:
+
+```
+- document "Investing summary | Wealthsimple":
+  - navigation:
+    - link "Investing"
+    - link "Tax"
+  - heading "Total equity" [level=2]
+  - text "$258,486.25"
+```
+
+The agent loop in `login()` sends this snapshot to Claude, executes the returned tool calls, feeds results back, and repeats until Claude calls `success`:
+
+```
+snapshot → Claude → tool call → execute → snapshot → …
+```
 
 **Tools available to Claude:**
-- `snapshot` — returns `page.locator('body').ariaSnapshot()`
-- `fill` — uses Playwright `fill()` (no key events; fine for username/password)
-- `type` — uses `pressSequentially()` (fires key events; required for OTP fields)
-- `click` — `getByRole(role, { name })`; followed by `domcontentloaded` wait with 3s timeout
-- `click_testid` — `getByTestId()`; escape hatch when role/name matches multiple elements
-- `request_mfa_code` — prompts user for OTP code, returns it to Claude as the tool result
-- `success` — terminates the loop
+
+| Tool | What it does |
+|---|---|
+| `snapshot` | Returns `page.locator('body').ariaSnapshot()` |
+| `fill` | Fills a form field by ARIA role + name using Playwright `fill()` (no key events) |
+| `type` | Types character-by-character via `pressSequentially()` (fires key events; required for OTP fields) |
+| `click` | Clicks by ARIA role + name; waits for `domcontentloaded` with 3s timeout |
+| `click_testid` | Clicks by `data-testid`; escape hatch when role/name matches multiple elements |
+| `request_mfa_code` | Pauses and prompts the user for an OTP code, returns it to Claude as the tool result |
+| `success` | Terminates the loop |
+
+**MFA flow:** When Claude sees an OTP screen it calls `request_mfa_code` — the tool pauses and prompts the user for the code, then returns it to Claude as the tool result. Claude fills it in and continues. No manual handoff needed.
 
 **Why `domcontentloaded` not `load` after clicks:** Wealthsimple and similar SPAs never fire a second `load` event during in-app navigation. Using `load` hangs indefinitely; `domcontentloaded` with a catch is the safe alternative.
 
