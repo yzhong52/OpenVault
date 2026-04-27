@@ -54,6 +54,9 @@ const TOOL = {
   TYPE:             'type',
   CLICK:            'click',
   CLICK_TESTID:     'click_testid',
+  CLICK_TEXT:       'click_text',
+  CLICK_JS:         'click_js',
+  PRESS_ENTER:      'press_enter',
   REQUEST_MFA_CODE: 'request_mfa_code',
   SUCCESS:          'success',
 } as const;
@@ -114,6 +117,41 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: TOOL.CLICK_TEXT,
+    description: 'Click an element by its visible text content. Use when the button ARIA name is unclear or does not match visible text.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Visible text of the element to click' },
+        exact: { type: 'boolean', description: 'Match text exactly (default true)' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: TOOL.CLICK_JS,
+    description: 'Click an element using a JavaScript querySelector. Use as a last resort when Playwright click fails due to visibility or overlap checks.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: { type: 'string', description: 'CSS selector for the element' },
+      },
+      required: ['selector'],
+    },
+  },
+  {
+    name: TOOL.PRESS_ENTER,
+    description: 'Press the Enter key on an element identified by ARIA role and name. Use to submit forms when clicking the submit button fails.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        role: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: ['role', 'name'],
+    },
+  },
+  {
     name: TOOL.REQUEST_MFA_CODE,
     description: 'Pause and ask the user to provide an MFA / verification code. Returns the code the user entered.',
     input_schema: {
@@ -168,6 +206,26 @@ async function executeTool(
       await page.getByTestId(input.testId).click();
       await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
       return `clicked [data-testid="${input.testId}"]`;
+    }
+
+    case TOOL.CLICK_TEXT: {
+      const exact = input.exact !== 'false';
+      await page.getByText(input.text, { exact }).click();
+      await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
+      return `clicked text "${input.text}"`;
+    }
+
+    case TOOL.CLICK_JS: {
+      await page.$eval(input.selector, (el: HTMLElement) => el.click());
+      await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
+      return `js-clicked "${input.selector}"`;
+    }
+
+    case TOOL.PRESS_ENTER: {
+      const role = input.role as Parameters<typeof page.getByRole>[0];
+      await page.getByRole(role, { name: input.name }).press('Enter');
+      await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
+      return `pressed Enter on ${input.role} "${input.name}"`;
     }
 
     case TOOL.REQUEST_MFA_CODE: {
