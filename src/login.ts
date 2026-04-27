@@ -305,9 +305,19 @@ async function main() {
   await fs.mkdir(profileDir, { recursive: true });
   await fs.mkdir('logs', { recursive: true });
 
-  // Persistent context reuses cookies and browser fingerprint across runs so financial
-  // institutions recognise this as a known device and don't send security warning emails.
-  const context = await chromium.launchPersistentContext(profileDir, { headless: false });
+  const context = await chromium.launchPersistentContext(
+    // Persistent profile reuses cookies and browser fingerprint across runs so
+    // financial institutions recognise this as a known device and don't send
+    // security warning emails on every login.
+    profileDir,
+    {
+      headless: false,
+      // Use real Chrome binary so the browser identifies as "Google Chrome"
+      // rather than "Google Chrome for Testing", which some sites treat as a
+      // bot and may trigger extra verification or block login entirely.
+      channel: 'chrome',
+    },
+  );
   const page = context.pages()[0] ?? await context.newPage();
 
   await login(page, WS_LOGIN_URL, { email, password });
