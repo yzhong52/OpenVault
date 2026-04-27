@@ -7,6 +7,7 @@ import * as readline from 'readline';
 import { login } from './tasks/login';
 import { findAccounts } from './tasks/accounts';
 import { keychainSave, keychainLoad } from './keychain';
+import { openDb, saveSync } from './storage';
 
 interface Institution {
   name: string;
@@ -114,6 +115,7 @@ program
     await fs.mkdir(PROFILE_DIR, { recursive: true });
     await fs.mkdir('logs', { recursive: true });
 
+    const db = openDb();
     const context = await chromium.launchPersistentContext(
       PROFILE_DIR,
       {
@@ -137,6 +139,8 @@ program
         await login(page, inst.url, { email: inst.username, password });
 
         const accounts = await findAccounts(page);
+        saveSync(db, inst.name, inst.url, accounts);
+
         console.log(`\n${inst.name} accounts:`);
         for (const account of accounts) {
           const parts = [account.name, account.type, account.balance].filter(Boolean);
@@ -144,6 +148,7 @@ program
         }
       }
     } finally {
+      db.close();
       await prompt('\nPress Enter to close... ');
       await context.close();
     }

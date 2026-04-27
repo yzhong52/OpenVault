@@ -7,10 +7,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
+    "better-sqlite3": "^12.9.0",
     "commander": "^14.0.3",
     "playwright": "^1.52.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
