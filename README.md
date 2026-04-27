@@ -20,27 +20,27 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ## Usage
 
-**Add an account** (saves credentials to macOS Keychain):
+**Add an institution** (saves credentials to macOS Keychain):
 
 ```bash
-npm run cli account add
+npm run cli institution add
 ```
 
 You'll be prompted for the institution name, login URL, username or email, and password. Credentials are stored in the macOS Keychain — you won't be asked again.
 
-**Sync all accounts** (login and print balances):
+**Sync all institutions** (login and print accounts):
 
 ```bash
 npm run cli sync
 ```
 
-**Sync a single account** by name:
+**Sync a single institution** by name:
 
 ```bash
-npm run cli -- sync --account TD
+npm run cli -- sync --institution TD
 ```
 
-Opens a real Chrome window, logs into each saved account, and prints the accounts and balances to the console.
+Opens a real Chrome window, logs into each saved institution, and prints the financial accounts and balances to the console.
 
 **Debug mode** — logs each prompt sent to Claude and pauses 1s per tool call:
 
@@ -52,13 +52,14 @@ DEBUG=1 npm run cli sync
 
 ```
 src/
-  cli.ts          # CLI entry point (account add, sync)
-  login.ts        # Claude-powered login agent (institution-agnostic)
-  accounts.ts     # Claude-powered account discovery agent
-  keychain.ts     # macOS Keychain helpers
-  wealthsimple.ts # Hardcoded Playwright login (reference)
+  cli.ts        # CLI entry point (institution add, sync)
+  login.ts      # Claude-powered login agent (institution-agnostic)
+  accounts.ts   # Claude-powered account discovery agent
+  browser.ts    # Shared Playwright tool definitions and executors
+  agent.ts      # Generic Claude agent loop
+  keychain.ts   # macOS Keychain helpers
 ~/.openvault/
-  accounts.json   # Saved account metadata (no passwords)
+  accounts.json   # Saved institution metadata (no passwords)
   browser-profile/ # Persistent Chrome profile
 ```
 

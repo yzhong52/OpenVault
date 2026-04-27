@@ -8,27 +8,27 @@ import { login } from './login';
 import { findAccounts } from './accounts';
 import { keychainSave, keychainLoad } from './keychain';
 
-interface AccountEntry {
+interface Institution {
   name: string;
   url: string;
   username: string;
 }
 
-const DATA_DIR      = path.join(os.homedir(), '.openvault');
-const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
-const PROFILE_DIR   = process.env.OPENVAULT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
+const DATA_DIR          = path.join(os.homedir(), '.openvault');
+const INSTITUTIONS_FILE = path.join(DATA_DIR, 'accounts.json');
+const PROFILE_DIR       = process.env.OPENVAULT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
 
-async function readAccounts(): Promise<AccountEntry[]> {
+async function readInstitutions(): Promise<Institution[]> {
   try {
-    return JSON.parse(await fs.readFile(ACCOUNTS_FILE, 'utf-8'));
+    return JSON.parse(await fs.readFile(INSTITUTIONS_FILE, 'utf-8'));
   } catch {
     return [];
   }
 }
 
-async function writeAccounts(accounts: AccountEntry[]): Promise<void> {
+async function writeInstitutions(institutions: Institution[]): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2) + '\n');
+  await fs.writeFile(INSTITUTIONS_FILE, JSON.stringify(institutions, null, 2) + '\n');
 }
 
 function prompt(question: string): Promise<string> {
@@ -38,7 +38,6 @@ function prompt(question: string): Promise<string> {
 
 function promptPassword(question: string): Promise<string> {
   process.stdout.write(question);
-  // Hide input while typing
   process.stdin.setRawMode?.(true);
   return new Promise(resolve => {
     let value = '';
@@ -52,9 +51,9 @@ function promptPassword(question: string): Promise<string> {
         process.stdin.removeListener('data', handler);
         process.stdout.write('\n');
         resolve(value);
-      } else if (char === '') {
+      } else if (char === '') {
         process.exit();
-      } else if (char === '') {
+      } else if (char === '') {
         value = value.slice(0, -1);
       } else {
         value += char;
@@ -63,56 +62,52 @@ function promptPassword(question: string): Promise<string> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
-
 const program = new Command();
 
 program
   .name('openvault')
   .description('Agentic financial data aggregator');
 
-const account = program.command('account').description('Manage saved accounts');
+const institution = program.command('institution').description('Manage saved institutions');
 
-account
+institution
   .command('add')
-  .description('Add a new account and save credentials to Keychain')
+  .description('Add a new institution and save credentials to Keychain')
   .action(async () => {
     const name     = await prompt('Institution name (e.g. Wealthsimple): ');
     const url      = await prompt('Login URL: ');
     const username = await prompt('Username or email: ');
     const password = await promptPassword('Password: ');
 
-    const accounts = await readAccounts();
-    const existing = accounts.findIndex(a => a.name === name && a.username === username);
+    const institutions = await readInstitutions();
+    const existing = institutions.findIndex(i => i.name === name && i.username === username);
     if (existing >= 0) {
-      accounts[existing] = { name, url, username };
+      institutions[existing] = { name, url, username };
     } else {
-      accounts.push({ name, url, username });
+      institutions.push({ name, url, username });
     }
 
-    await writeAccounts(accounts);
+    await writeInstitutions(institutions);
     keychainSave(name, username, password);
     console.log(`Saved ${name} (${username})`);
   });
 
 program
   .command('sync')
-  .description('Login to all saved accounts and print balances')
-  .option('-a, --account <name>', 'Only sync the account with this name (case-insensitive)')
-  .action(async (opts: { account?: string }) => {
-    let accounts = await readAccounts();
-    if (opts.account) {
-      const filter = opts.account.toLowerCase();
-      accounts = accounts.filter(a => a.name.toLowerCase() === filter);
-      if (accounts.length === 0) {
-        console.log(`No account named "${opts.account}". Run: npm run cli account list`);
+  .description('Login to all saved institutions and print accounts')
+  .option('-i, --institution <name>', 'Only sync the institution with this name (case-insensitive)')
+  .action(async (opts: { institution?: string }) => {
+    let institutions = await readInstitutions();
+    if (opts.institution) {
+      const filter = opts.institution.toLowerCase();
+      institutions = institutions.filter(i => i.name.toLowerCase() === filter);
+      if (institutions.length === 0) {
+        console.log(`No institution named "${opts.institution}". Run: npm run cli institution add`);
         return;
       }
     }
-    if (accounts.length === 0) {
-      console.log('No accounts saved. Run: npm run cli account add');
+    if (institutions.length === 0) {
+      console.log('No institutions saved. Run: npm run cli institution add');
       return;
     }
 
@@ -131,20 +126,20 @@ program
     try {
       const page = context.pages()[0] ?? await context.newPage();
 
-      for (const entry of accounts) {
-        const password = keychainLoad(entry.name, entry.username);
+      for (const inst of institutions) {
+        const password = keychainLoad(inst.name, inst.username);
         if (!password) {
-          console.warn(`No password found in Keychain for ${entry.name} (${entry.username}), skipping.`);
+          console.warn(`No password found in Keychain for ${inst.name} (${inst.username}), skipping.`);
           continue;
         }
 
-        console.log(`\nSyncing ${entry.name}...`);
-        await login(page, entry.url, { email: entry.username, password });
+        console.log(`\nSyncing ${inst.name}...`);
+        await login(page, inst.url, { email: inst.username, password });
 
-        const found = await findAccounts(page);
-        console.log(`\n${entry.name} accounts:`);
-        for (const a of found) {
-          const parts = [a.name, a.type, a.balance].filter(Boolean);
+        const accounts = await findAccounts(page);
+        console.log(`\n${inst.name} accounts:`);
+        for (const account of accounts) {
+          const parts = [account.name, account.type, account.balance].filter(Boolean);
           console.log(' ', parts.join(' — '));
         }
       }
