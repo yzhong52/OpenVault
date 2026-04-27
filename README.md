@@ -59,7 +59,8 @@ src/
   agent.ts      # Generic Claude agent loop
   keychain.ts   # macOS Keychain helpers
 ~/.openvault/
-  accounts.json   # Saved institution metadata (no passwords)
+  accounts.json    # Saved institution metadata (no passwords)
+  data.db          # Synced account and balance history (SQLite)
   browser-profile/ # Persistent Chrome profile
 ```
 
