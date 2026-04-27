@@ -2,8 +2,8 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import * as fs from 'fs/promises';
 import * as readline from 'readline';
-import { runAgent, toolDone } from './agent';
-import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from './browser';
+import { runAgent, toolDone } from '../agent';
+import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
 
 export interface Credentials {
   email: string;

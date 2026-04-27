@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone } from './agent';
-import { BROWSER_TOOLS, executeBrowserTool } from './browser';
+import { runAgent, toolDone } from '../agent';
+import { BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 
 export interface Account {
   name: string;

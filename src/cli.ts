@@ -4,8 +4,8 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
-import { login } from './login';
-import { findAccounts } from './accounts';
+import { login } from './tasks/login';
+import { findAccounts } from './tasks/accounts';
 import { keychainSave, keychainLoad } from './keychain';
 
 interface Institution {

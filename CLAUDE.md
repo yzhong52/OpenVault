@@ -6,10 +6,12 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 
 ## Key files
 
-- `src/cli.ts` — CLI entry point; `account add` and `sync` commands
-- `src/login.ts` — Claude-powered login agent (institution-agnostic, pure module)
-- `src/accounts.ts` — Claude-powered account discovery agent
+- `src/cli.ts` — CLI entry point; `institution add` and `sync` commands
 - `src/keychain.ts` — macOS Keychain helpers
+- `src/agent/index.ts` — generic `runAgent()` loop, shared constants
+- `src/agent/browser.ts` — shared Playwright tool definitions and executors
+- `src/tasks/login.ts` — Claude-powered login agent (institution-agnostic)
+- `src/tasks/accounts.ts` — Claude-powered account discovery agent
 
 ## Running
 
@@ -71,3 +73,7 @@ snapshot → Claude → tool call → execute → snapshot → …
 ## Logs
 
 Accessibility snapshots are saved to `logs/<hostname>_<timestamp>_<n>.txt` after each `snapshot` tool call. These are gitignored and useful for debugging selector issues.
+
+## Adding a new task
+
+Add a new file under `src/tasks/` (e.g. `transactions.ts`). Import `runAgent` from `../agent` and browser tools from `../agent/browser`. Define task-specific tools, a system prompt, and export a single async function.
