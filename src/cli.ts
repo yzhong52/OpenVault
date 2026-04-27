@@ -11,7 +11,7 @@ import { keychainSave, keychainLoad } from './keychain';
 interface AccountEntry {
   name: string;
   url: string;
-  email: string;
+  username: string;
 }
 
 const DATA_DIR      = path.join(os.homedir(), '.openvault');
@@ -81,20 +81,20 @@ account
   .action(async () => {
     const name     = await prompt('Institution name (e.g. Wealthsimple): ');
     const url      = await prompt('Login URL: ');
-    const email    = await prompt('Email: ');
+    const username = await prompt('Username or email: ');
     const password = await promptPassword('Password: ');
 
     const accounts = await readAccounts();
-    const existing = accounts.findIndex(a => a.name === name && a.email === email);
+    const existing = accounts.findIndex(a => a.name === name && a.username === username);
     if (existing >= 0) {
-      accounts[existing] = { name, url, email };
+      accounts[existing] = { name, url, username };
     } else {
-      accounts.push({ name, url, email });
+      accounts.push({ name, url, username });
     }
 
     await writeAccounts(accounts);
-    keychainSave(name, email, password);
-    console.log(`Saved ${name} (${email})`);
+    keychainSave(name, username, password);
+    console.log(`Saved ${name} (${username})`);
   });
 
 program
@@ -123,14 +123,14 @@ program
       const page = context.pages()[0] ?? await context.newPage();
 
       for (const entry of accounts) {
-        const password = keychainLoad(entry.name, entry.email);
+        const password = keychainLoad(entry.name, entry.username);
         if (!password) {
-          console.warn(`No password found in Keychain for ${entry.name} (${entry.email}), skipping.`);
+          console.warn(`No password found in Keychain for ${entry.name} (${entry.username}), skipping.`);
           continue;
         }
 
         console.log(`\nSyncing ${entry.name}...`);
-        await login(page, entry.url, { email: entry.email, password });
+        await login(page, entry.url, { email: entry.username, password });
 
         const found = await findAccounts(page);
         console.log(`\n${entry.name} accounts:`);
