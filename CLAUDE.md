@@ -10,20 +10,15 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 - `src/login.ts` — Claude-powered login agent (institution-agnostic, pure module)
 - `src/accounts.ts` — Claude-powered account discovery agent
 - `src/keychain.ts` — macOS Keychain helpers
-- `src/wealthsimple.ts` — hardcoded Playwright login for Wealthsimple (no Claude); reference and fallback
 
 ## Running
 
 ```bash
-npm run login          # Claude agent (Wealthsimple entry point)
-DEBUG=1 npm run login  # Verbose: logs prompts to Claude + 1s pause per tool call
-npm run wealthsimple   # Hardcoded Playwright script
+npm run cli account add          # Add an account (saves credentials to Keychain)
+npm run cli -- sync              # Sync all accounts
+npm run cli -- sync --account TD # Sync a single account by name
+DEBUG=1 npm run cli -- sync      # Verbose: logs prompts to Claude + 1s pause per tool call
 ```
-
-Credentials are read from env vars; the script prompts interactively if not set:
-- `OPENVAULT_WS_USERNAME`
-- `OPENVAULT_WS_PASSWORD`
-- `ANTHROPIC_API_KEY`
 
 ## Architecture of login.ts
 
@@ -53,6 +48,9 @@ snapshot → Claude → tool call → execute → snapshot → …
 | `type` | Types character-by-character via `pressSequentially()` (fires key events; required for OTP fields) |
 | `click` | Clicks by ARIA role + name; waits for `domcontentloaded` with 3s timeout |
 | `click_testid` | Clicks by `data-testid`; escape hatch when role/name matches multiple elements |
+| `click_text` | Clicks by visible text content; useful when ARIA name differs from label |
+| `click_js` | JavaScript `.click()` via `evaluate()`; bypasses Playwright visibility checks |
+| `press_enter` | Presses Enter on a field by ARIA role + name; submits forms when button click fails |
 | `request_mfa_code` | Pauses and prompts the user for an OTP code, returns it to Claude as the tool result |
 | `success` | Terminates the loop |
 
@@ -72,4 +70,4 @@ snapshot → Claude → tool call → execute → snapshot → …
 
 ## Logs
 
-Accessibility snapshots are saved to `logs/ws_<label>.txt` after each major step. These are gitignored and useful for debugging selector issues.
+Accessibility snapshots are saved to `logs/<hostname>_<timestamp>_<n>.txt` after each `snapshot` tool call. These are gitignored and useful for debugging selector issues.

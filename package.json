@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "cli": "tsx src/cli.ts",
-    "wealthsimple": "tsx src/wealthsimple.ts"
+    "cli": "tsx src/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
