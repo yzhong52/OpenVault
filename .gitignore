@@ -1,6 +1,5 @@
-# Rust (legacy)
+# Build output
 /target
-/v0/target
 
 # TypeScript
 node_modules/

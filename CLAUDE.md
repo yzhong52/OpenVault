@@ -6,9 +6,11 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 
 ## Key files
 
-- `src/login.ts` — the main Claude-powered login agent; institution-agnostic
-- `src/wealthsimple.ts` — hardcoded Playwright login for Wealthsimple (no Claude); used as a reference and fallback
-- `v0/` — original Rust + chromiumoxide implementation; kept for reference only, not built
+- `src/cli.ts` — CLI entry point; `account add` and `sync` commands
+- `src/login.ts` — Claude-powered login agent (institution-agnostic, pure module)
+- `src/accounts.ts` — Claude-powered account discovery agent
+- `src/keychain.ts` — macOS Keychain helpers
+- `src/wealthsimple.ts` — hardcoded Playwright login for Wealthsimple (no Claude); reference and fallback
 
 ## Running
 

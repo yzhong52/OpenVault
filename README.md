@@ -54,7 +54,6 @@ src/
 ~/.openvault/
   accounts.json   # Saved account metadata (no passwords)
   browser-profile/ # Persistent Chrome profile
-v0/               # Original Rust + chromiumoxide implementation (reference)
 ```
 
 ## Requirements
