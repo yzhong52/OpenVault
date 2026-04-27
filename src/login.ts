@@ -3,6 +3,7 @@ import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import { chromium, type Page } from 'playwright';
 import * as fs from 'fs/promises';
 import * as readline from 'readline';
+import { findAccounts } from './accounts';
 
 // Set DEBUG=1 to log each message sent to Claude and pause 1s between tool calls.
 const DEBUG = process.env.DEBUG === '1';
@@ -186,7 +187,7 @@ async function executeTool(
 // ---------------------------------------------------------------------------
 
 const MODEL = 'claude-sonnet-4-6';
-const MAX_TURNS = 10;
+const MAX_TURNS = 20;
 
 async function login(page: Page, url: string, creds: Credentials): Promise<void> {
   const client = new Anthropic();  // reads ANTHROPIC_API_KEY from env
@@ -233,7 +234,7 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     let done = false;
 
     for (const toolUse of toolUses) {
-      console.log(`[tool] ${toolUse.name}`, toolUse.input);
+      console.log(`[turn ${turn + 1}/${MAX_TURNS}] [tool] ${toolUse.name}`, toolUse.input);
 
       // tool_choice 'any' forces Claude to always call a tool, so success is the
       // only way Claude can explicitly signal it's done rather than just stopping.
@@ -254,7 +255,7 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
       }
 
-      console.log(`[tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
+      console.log(`[turn ${turn + 1}/${MAX_TURNS}] [tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
       if (DEBUG) await sleep(1000);
 
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
@@ -271,7 +272,7 @@ async function login(page: Page, url: string, creds: Credentials): Promise<void>
     }
   }
 
-  throw new Error('agent did not complete login within turn limit');
+  throw new Error(`agent did not complete login within ${MAX_TURNS} turns`);
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +307,13 @@ async function main() {
 
   await login(page, WS_LOGIN_URL, { email, password });
   await snap(page, 'dashboard');
+
+  const accounts = await findAccounts(page);
+  console.log('\nAccounts:');
+  for (const account of accounts) {
+    const parts = [account.name, account.type, account.balance].filter(Boolean);
+    console.log(' ', parts.join(' — '));
+  }
 
   await promptUser('Press Enter to close... ');
   await browser.close();
