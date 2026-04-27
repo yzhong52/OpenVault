@@ -9,5 +9,8 @@ dist/
 # Logs & runtime output
 /logs
 
+# Persistent browser profile (preserves device recognition cookies)
+/browser-profile
+
 # Environment
 .env

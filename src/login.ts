@@ -301,9 +301,14 @@ async function main() {
   const email    = process.env.OPENVAULT_WS_USERNAME ?? await promptUser('Email: ');
   const password = process.env.OPENVAULT_WS_PASSWORD ?? await promptUser('Password: ');
 
-  const browser = await chromium.launch({ headless: false });
-  const page = await browser.newPage();
+  const profileDir = process.env.OPENVAULT_PROFILE_DIR ?? './browser-profile';
+  await fs.mkdir(profileDir, { recursive: true });
   await fs.mkdir('logs', { recursive: true });
+
+  // Persistent context reuses cookies and browser fingerprint across runs so financial
+  // institutions recognise this as a known device and don't send security warning emails.
+  const context = await chromium.launchPersistentContext(profileDir, { headless: false });
+  const page = context.pages()[0] ?? await context.newPage();
 
   await login(page, WS_LOGIN_URL, { email, password });
   await snap(page, 'dashboard');
@@ -316,7 +321,7 @@ async function main() {
   }
 
   await promptUser('Press Enter to close... ');
-  await browser.close();
+  await context.close();
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
