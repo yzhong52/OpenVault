@@ -1,9 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
-import { chromium, type Page } from 'playwright';
-import * as fs from 'fs/promises';
+import type { Page } from 'playwright';
 import * as readline from 'readline';
-import { findAccounts } from './accounts';
 
 // Set DEBUG=1 to log each message sent to Claude and pause 1s between tool calls.
 const DEBUG = process.env.DEBUG === '1';
@@ -16,7 +14,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-interface Credentials {
+export interface Credentials {
   email: string;
   password: string;
 }
@@ -189,7 +187,7 @@ async function executeTool(
 const MODEL = 'claude-sonnet-4-6';
 const MAX_TURNS = 20;
 
-async function login(page: Page, url: string, creds: Credentials): Promise<void> {
+export async function login(page: Page, url: string, creds: Credentials): Promise<void> {
   const client = new Anthropic();  // reads ANTHROPIC_API_KEY from env
 
   await page.goto(url, { waitUntil: 'load' });
@@ -284,57 +282,3 @@ function promptUser(question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans); }));
 }
 
-async function snap(page: Page, label: string, prefix = 'ws'): Promise<void> {
-  const tree = await page.locator('body').ariaSnapshot();
-  const path = `logs/${prefix}_${label}.txt`;
-  await fs.writeFile(path, tree);
-  console.log(`saved ${path}`);
-}
-
-// ---------------------------------------------------------------------------
-// Wealthsimple entry point
-// ---------------------------------------------------------------------------
-
-const WS_LOGIN_URL = 'https://my.wealthsimple.com/app/login?locale=en-ca';
-
-async function main() {
-  const email    = process.env.OPENVAULT_WS_USERNAME ?? await promptUser('Email: ');
-  const password = process.env.OPENVAULT_WS_PASSWORD ?? await promptUser('Password: ');
-
-  const profileDir = process.env.OPENVAULT_PROFILE_DIR ?? './browser-profile';
-  await fs.mkdir(profileDir, { recursive: true });
-  await fs.mkdir('logs', { recursive: true });
-
-  const context = await chromium.launchPersistentContext(
-    // Persistent profile reuses cookies and browser fingerprint across runs so
-    // financial institutions recognise this as a known device and don't send
-    // security warning emails on every login.
-    profileDir,
-    {
-      headless: false,
-      // Use real Chrome binary so the browser identifies as "Google Chrome"
-      // rather than "Google Chrome for Testing", which some sites treat as a
-      // bot and may trigger extra verification or block login entirely.
-      channel: 'chrome',
-      // Remove Playwright's automation signal; without this Google blocks
-      // sign-in with "this browser may not be secure" and Gmail is unusable.
-      args: ['--disable-blink-features=AutomationControlled'],
-    },
-  );
-  const page = context.pages()[0] ?? await context.newPage();
-
-  await login(page, WS_LOGIN_URL, { email, password });
-  await snap(page, 'dashboard');
-
-  const accounts = await findAccounts(page);
-  console.log('\nAccounts:');
-  for (const account of accounts) {
-    const parts = [account.name, account.type, account.balance].filter(Boolean);
-    console.log(' ', parts.join(' — '));
-  }
-
-  await promptUser('Press Enter to close... ');
-  await context.close();
-}
-
-main().catch(err => { console.error(err); process.exit(1); });

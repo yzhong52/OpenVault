@@ -5,16 +5,6 @@ Aggregate accounts, balances, and transactions from any financial institution �
 - **Universal.** Traditional aggregators break when banks change their UI or revoke API access. OpenVault uses an AI agent that reads the page the same way you do — works out of the box for any bank, any UI, with no setup per institution.
 - **Private.** Your credentials never leave your machine. OpenVault opens a real browser, logs in as you, and saves data locally. No third party ever sees your account information.
 
-
-## Scripts
-
-| Command | Description |
-|---|---|
-| `npm run login` | Claude-powered login (works for any institution) |
-| `npm run wealthsimple` | Hardcoded Playwright login (Wealthsimple, no Claude) |
-
----
-
 ## Setup
 
 ```bash
@@ -22,44 +12,54 @@ npm install
 npx playwright install chromium
 ```
 
-Set environment variables:
+Set your Anthropic API key:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export OPENVAULT_WS_USERNAME=you@example.com
-export OPENVAULT_WS_PASSWORD=yourpassword
 ```
 
----
+## Usage
 
-## Running
+**Add an account** (saves credentials to macOS Keychain):
 
 ```bash
-# Claude-powered login (prompts for credentials if env vars not set)
-npm run login
-
-# Verbose debug mode — logs each prompt sent to Claude, pauses 1s per tool call
-DEBUG=1 npm run login
-
-# Original hardcoded Playwright script
-npm run wealthsimple
+npm run cli account add
 ```
 
----
+You'll be prompted for the institution name, login URL, email, and password. Credentials are stored in the macOS Keychain — you won't be asked again.
+
+**Sync all accounts** (login and print balances):
+
+```bash
+npm run cli sync
+```
+
+Opens a real Chrome window, logs into each saved account, and prints the accounts and balances to the console.
+
+**Debug mode** — logs each prompt sent to Claude and pauses 1s per tool call:
+
+```bash
+DEBUG=1 npm run cli sync
+```
 
 ## Project Structure
 
 ```
 src/
-  login.ts          # Claude-powered login agent (institution-agnostic)
-  wealthsimple.ts   # Hardcoded Playwright login flow (reference / v1)
-v0/                 # Original Rust + chromiumoxide implementation (reference)
-logs/               # Accessibility snapshots saved during runs (gitignored)
+  cli.ts          # CLI entry point (account add, sync)
+  login.ts        # Claude-powered login agent (institution-agnostic)
+  accounts.ts     # Claude-powered account discovery agent
+  keychain.ts     # macOS Keychain helpers
+  wealthsimple.ts # Hardcoded Playwright login (reference)
+~/.openvault/
+  accounts.json   # Saved account metadata (no passwords)
+  browser-profile/ # Persistent Chrome profile
+v0/               # Original Rust + chromiumoxide implementation (reference)
 ```
-
----
 
 ## Requirements
 
 - Node.js 18+
+- macOS (Keychain is used for credential storage)
+- Google Chrome installed
 - `ANTHROPIC_API_KEY` environment variable

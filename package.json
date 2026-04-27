@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "wealthsimple": "tsx src/wealthsimple.ts",
-    "login": "tsx src/login.ts"
+    "cli": "tsx src/cli.ts",
+    "wealthsimple": "tsx src/wealthsimple.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
+    "commander": "^14.0.3",
     "playwright": "^1.52.0"
   },
   "devDependencies": {
