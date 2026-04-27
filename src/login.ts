@@ -316,6 +316,9 @@ async function main() {
       // rather than "Google Chrome for Testing", which some sites treat as a
       // bot and may trigger extra verification or block login entirely.
       channel: 'chrome',
+      // Remove Playwright's automation signal; without this Google blocks
+      // sign-in with "this browser may not be secure" and Gmail is unusable.
+      args: ['--disable-blink-features=AutomationControlled'],
     },
   );
   const page = context.pages()[0] ?? await context.newPage();
