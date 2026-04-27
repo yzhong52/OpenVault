@@ -100,8 +100,17 @@ account
 program
   .command('sync')
   .description('Login to all saved accounts and print balances')
-  .action(async () => {
-    const accounts = await readAccounts();
+  .option('-a, --account <name>', 'Only sync the account with this name (case-insensitive)')
+  .action(async (opts: { account?: string }) => {
+    let accounts = await readAccounts();
+    if (opts.account) {
+      const filter = opts.account.toLowerCase();
+      accounts = accounts.filter(a => a.name.toLowerCase() === filter);
+      if (accounts.length === 0) {
+        console.log(`No account named "${opts.account}". Run: npm run cli account list`);
+        return;
+      }
+    }
     if (accounts.length === 0) {
       console.log('No accounts saved. Run: npm run cli account add');
       return;

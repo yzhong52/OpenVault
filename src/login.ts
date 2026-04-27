@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as readline from 'readline';
+import * as fs from 'fs/promises';
 
 // Set DEBUG=1 to log each message sent to Claude and pause 1s between tool calls.
 const DEBUG = process.env.DEBUG === '1';
@@ -261,6 +262,10 @@ export async function login(page: Page, url: string, creds: Credentials): Promis
   const systemPrompt = buildSystemPrompt(creds);
   console.log('agent: starting login...');
 
+  const sessionTag = new URL(url).hostname.replace(/\./g, '_') + '_' + Date.now();
+  await fs.mkdir('logs', { recursive: true });
+  let snapCount = 0;
+
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const lastMessage = messages[messages.length - 1];
     debug('\n── prompt to claude ──────────────────────────────');
@@ -313,6 +318,11 @@ export async function login(page: Page, url: string, creds: Credentials): Promis
 
       console.log(`[turn ${turn + 1}/${MAX_TURNS}] [tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
       if (DEBUG) await sleep(1000);
+
+      if (toolUse.name === TOOL.SNAPSHOT) {
+        const file = `logs/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
+        await fs.writeFile(file, output);
+      }
 
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
     }
