@@ -114,47 +114,41 @@ export async function login(page: Page, url: string, creds: Credentials, institu
     buildSystemPrompt(creds, memory),
     `The browser has navigated to the login page. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
     async (name, input, pg) => {
-      if (name === BROWSER_TOOL.SNAPSHOT) {
-        const snapshot = await executeBrowserTool(name, input, pg);
-        const file = `logs/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
-        await fs.writeFile(file, snapshot);
-        const preview = snapshot.length > 240 ? snapshot.slice(0, 240) + '…' : snapshot;
-        console.log(`snapshot taken:\n${preview}\nsee full snapshot at: ${file}`);
-        return snapshot;
-      }
-
-      if (name === LOGIN_TOOL.FILL) {
-        await byRole(pg, input).fill(input.value as string);
-        return `filled ${input.role} "${input.name}"`;
-      }
-
-      if (name === LOGIN_TOOL.TYPE) {
-        await byRole(pg, input).pressSequentially(input.value as string);
-        return `typed into ${input.role} "${input.name}"`;
-      }
-
-      if (name === LOGIN_TOOL.REQUEST_MFA_CODE) {
-        console.log(`\n${input.instructions as string}`);
-        const code = await fetchMfaCode(loginStartedAt) ?? (await promptUser('Code: ')).trim();
-        return code;
-      }
-
-      if (name === LOGIN_TOOL.SUCCESS) {
-        await saveLoginMemory(institutionName, { failures: newFailures });
-        return toolDone<void>(undefined, 'login complete');
-      }
-
-      // Track click failures so future sessions can skip known-bad selectors
-      if (CLICK_TOOLS.has(name)) {
-        try {
-          return await executeBrowserTool(name, input, pg);
-        } catch (err) {
-          newFailures.push({ tool: name, input, error: err instanceof Error ? err.message : String(err) });
-          throw err;
+      switch (name) {
+        case BROWSER_TOOL.SNAPSHOT: {
+          const snapshot = await executeBrowserTool(name, input, pg);
+          const file = `logs/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
+          await fs.writeFile(file, snapshot);
+          const preview = snapshot.length > 240 ? snapshot.slice(0, 240) + '…' : snapshot;
+          console.log(`snapshot taken:\n${preview}\nsee full snapshot at: ${file}`);
+          return snapshot;
         }
+        case LOGIN_TOOL.FILL:
+          await byRole(pg, input).fill(input.value as string);
+          return `filled ${input.role} "${input.name}"`;
+        case LOGIN_TOOL.TYPE:
+          await byRole(pg, input).pressSequentially(input.value as string);
+          return `typed into ${input.role} "${input.name}"`;
+        case LOGIN_TOOL.REQUEST_MFA_CODE: {
+          console.log(`\n${input.instructions as string}`);
+          const code = await fetchMfaCode(loginStartedAt) ?? (await promptUser('Code: ')).trim();
+          return code;
+        }
+        case LOGIN_TOOL.SUCCESS:
+          await saveLoginMemory(institutionName, { failures: newFailures });
+          return toolDone<void>(undefined, 'login complete');
+        default:
+          // Track click failures so future sessions can skip known-bad selectors
+          if (CLICK_TOOLS.has(name)) {
+            try {
+              return await executeBrowserTool(name, input, pg);
+            } catch (err) {
+              newFailures.push({ tool: name, input, error: err instanceof Error ? err.message : String(err) });
+              throw err;
+            }
+          }
+          return executeBrowserTool(name, input, pg);
       }
-
-      return executeBrowserTool(name, input, pg);
     },
   );
 
