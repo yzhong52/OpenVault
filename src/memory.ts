@@ -1,15 +1,17 @@
+import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DATA_DIR } from './db';
-
-interface SelectorFailure {
-  tool: string;
-  input: Record<string, unknown>;
-  error: string;
-}
+import { MODEL } from './agent';
 
 export interface LoginMemory {
-  failures: SelectorFailure[];
+  notes: string;
+}
+
+export interface ToolEvent {
+  description: string;
+  outcome: 'success' | 'error';
+  error?: string;
 }
 
 function memoryPath(institutionName: string): string {
@@ -19,27 +21,40 @@ function memoryPath(institutionName: string): string {
 
 export async function loadLoginMemory(institutionName: string): Promise<LoginMemory> {
   try {
-    return JSON.parse(await fs.readFile(memoryPath(institutionName), 'utf-8'));
+    const raw = JSON.parse(await fs.readFile(memoryPath(institutionName), 'utf-8'));
+    return { notes: raw.notes ?? '' };
   } catch {
-    return { failures: [] };
+    return { notes: '' };
   }
 }
 
 export async function saveLoginMemory(institutionName: string, memory: LoginMemory): Promise<void> {
-  if (memory.failures.length === 0) return;
+  if (!memory.notes) return;
   const dir = path.join(DATA_DIR, 'memory');
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(memoryPath(institutionName), JSON.stringify(memory, null, 2) + '\n');
 }
 
 export function formatMemoryForPrompt(memory: LoginMemory): string {
-  if (memory.failures.length === 0) return '';
-  const lines = memory.failures.map(f => {
-    const desc = f.input.role
-      ? `${f.tool}(${f.input.role} "${f.input.name}")`
-      : `${f.tool}(${JSON.stringify(f.input)})`;
-    const reason = f.error.split('\n')[0].replace(/^error:\s*/i, '');
-    return `- ${desc} previously failed: "${reason}". Try click_text, click_testid, or click_js instead.`;
+  if (!memory.notes) return '';
+  return `\nNotes from previous sessions for this institution:\n${memory.notes}`;
+}
+
+export async function generateSessionNotes(events: ToolEvent[]): Promise<string> {
+  const transcript = events
+    .map(e => `- ${e.description}: ${e.outcome === 'error' ? `FAILED (${e.error})` : 'ok'}`)
+    .join('\n');
+
+  const client = new Anthropic();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 512,
+    messages: [{
+      role: 'user',
+      content: `You are reviewing a browser automation session that logged into a financial institution website. Here is the sequence of actions taken:\n\n${transcript}\n\nWrite 3-5 concise bullet points capturing:\n- Which selectors or tools worked well and should be tried first next time\n- Which failed and what succeeded instead\n- Any unusual flows encountered (MFA, device trust prompts, etc.)\n\nBe specific about element names and tools used. These notes will be injected into the next login session's system prompt to help avoid repeating mistakes.`,
+    }],
   });
-  return `\nLessons from previous sessions for this institution:\n${lines.join('\n')}`;
+
+  const block = response.content.find(b => b.type === 'text');
+  return block ? block.text.trim() : '';
 }

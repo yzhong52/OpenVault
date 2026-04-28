@@ -4,7 +4,7 @@ import * as readline from 'readline';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
 import { fetchMfaCode } from '../gmail';
-import { loadLoginMemory, saveLoginMemory, formatMemoryForPrompt, type LoginMemory } from '../memory';
+import { loadLoginMemory, saveLoginMemory, formatMemoryForPrompt, generateSessionNotes, type LoginMemory, type ToolEvent } from '../memory';
 
 export interface Credentials {
   username: string;
@@ -96,7 +96,10 @@ const CLICK_TOOLS = new Set<string>([
 export async function login(page: Page, url: string, creds: Credentials, institutionName: string): Promise<void> {
   const loginStartedAt = new Date();
   const memory = await loadLoginMemory(institutionName);
-  const newFailures: LoginMemory['failures'] = [];
+  const events: ToolEvent[] = [];
+
+  const track = (description: string, outcome: 'success' | 'error', error?: string) =>
+    events.push({ description, outcome, error });
 
   await page.goto(url, { waitUntil: 'load' });
   const initialSnapshot = await page.locator('body').ariaSnapshot();
@@ -112,25 +115,35 @@ export async function login(page: Page, url: string, creds: Credentials, institu
       switch (name) {
         case LOGIN_TOOL.FILL:
           await byRole(pg, input).fill(input.value as string);
+          track(`fill(${input.role} "${input.name}")`, 'success');
           return `filled ${input.role} "${input.name}"`;
         case LOGIN_TOOL.TYPE:
           await byRole(pg, input).pressSequentially(input.value as string);
+          track(`type(${input.role} "${input.name}")`, 'success');
           return `typed into ${input.role} "${input.name}"`;
         case LOGIN_TOOL.REQUEST_MFA_CODE: {
           console.log(`\n${input.instructions as string}`);
           const code = await fetchMfaCode(loginStartedAt) ?? (await promptUser('Code: ')).trim();
+          track('request_mfa_code', 'success');
           return code;
         }
-        case LOGIN_TOOL.SUCCESS:
-          await saveLoginMemory(institutionName, { failures: newFailures });
+        case LOGIN_TOOL.SUCCESS: {
+          console.log('🤖 Summarizing session...');
+          const notes = await generateSessionNotes(events);
+          await saveLoginMemory(institutionName, { notes });
           return toolDone<void>(undefined, 'login complete');
+        }
         default:
-          // Track click failures so future sessions can skip known-bad selectors
           if (CLICK_TOOLS.has(name)) {
+            const desc = input.role
+              ? `${name}(${input.role} "${input.name}")`
+              : `${name}(${JSON.stringify(input)})`;
             try {
-              return await executeBrowserTool(name, input, pg);
+              const result = await executeBrowserTool(name, input, pg);
+              track(desc, 'success');
+              return result;
             } catch (err) {
-              newFailures.push({ tool: name, input, error: err instanceof Error ? err.message : String(err) });
+              track(desc, 'error', err instanceof Error ? err.message.split('\n')[0] : String(err));
               throw err;
             }
           }
