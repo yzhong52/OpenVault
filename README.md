@@ -34,19 +34,7 @@ You'll be prompted for the institution name, login URL, username or email, and p
 npm run cli -- sync
 ```
 
-**Sync a single institution** by name:
-
-```bash
-npm run cli -- sync --institution TD
-```
-
 Opens a real Chrome window, logs into each saved institution, extracts all accounts and balances, and saves them to a local SQLite database.
-
-**Debug mode** — logs each prompt sent to Claude and pauses 1s per tool call:
-
-```bash
-DEBUG=1 npm run cli -- sync
-```
 
 ## MFA
 
@@ -59,47 +47,6 @@ npm run cli -- config gmail
 ```
 
 See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for setup instructions, including how to forward SMS codes to Gmail if your institution sends MFA codes by text.
-
-## Inspecting synced data
-
-Data is stored in `~/.openvault/data.db` (SQLite). To query it:
-
-```bash
-sqlite3 ~/.openvault/data.db "
-  SELECT i.name, a.name, a.type, b.amount_cents
-  FROM balances b
-  JOIN accounts a ON a.id = b.account_id
-  JOIN institutions i ON i.id = a.institution_id
-  ORDER BY b.id DESC LIMIT 20;
-"
-```
-
-## Project structure
-
-```
-src/
-  cli.ts              # CLI entry point
-  keychain.ts         # macOS Keychain helpers
-  config.ts           # ~/.openvault/config.json read/write
-  storage.ts          # Save sync results to SQLite via Drizzle ORM
-  gmail.ts            # Gmail IMAP polling for MFA codes
-  agent/
-    index.ts          # Generic Claude agent loop
-    browser.ts        # Shared Playwright tool definitions and executors
-  tasks/
-    login.ts          # Claude-powered login agent (institution-agnostic)
-    accounts.ts       # Claude-powered account discovery agent
-  db/
-    schema.ts         # Drizzle table definitions
-    index.ts          # DB connection and auto-migration
-drizzle/              # SQL migration files (auto-applied at startup)
-faq/                  # Setup guides
-~/.openvault/
-  accounts.json       # Saved institution metadata (no passwords)
-  config.json         # Non-sensitive config (e.g. Gmail address)
-  data.db             # Synced account and balance history (SQLite)
-  browser-profile/    # Persistent Chrome profile (avoids re-authentication)
-```
 
 ## Requirements
 

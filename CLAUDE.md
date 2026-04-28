@@ -6,20 +6,26 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 
 ## Key files
 
-- `src/cli.ts` — CLI entry point; `institution add` and `sync` commands
+- `src/cli.ts` — CLI entry point; `institution add`, `sync`, `config gmail` commands
 - `src/keychain.ts` — macOS Keychain helpers
+- `src/config.ts` — reads/writes `~/.openvault/config.json` (non-sensitive settings)
+- `src/gmail.ts` — Gmail IMAP polling for automatic MFA code retrieval
+- `src/storage.ts` — saves sync results to SQLite via Drizzle ORM
 - `src/agent/index.ts` — generic `runAgent()` loop, shared constants
 - `src/agent/browser.ts` — shared Playwright tool definitions and executors
 - `src/tasks/login.ts` — Claude-powered login agent (institution-agnostic)
 - `src/tasks/accounts.ts` — Claude-powered account discovery agent
+- `src/db/schema.ts` — Drizzle table definitions
+- `src/db/index.ts` — DB connection and auto-migration
 
 ## Running
 
 ```bash
-npm run cli account add          # Add an account (saves credentials to Keychain)
-npm run cli -- sync              # Sync all accounts
-npm run cli -- sync --account TD # Sync a single account by name
-DEBUG=1 npm run cli -- sync      # Verbose: logs prompts to Claude + 1s pause per tool call
+npm run cli -- institution add          # Add an institution (saves credentials to Keychain)
+npm run cli -- sync                     # Sync all institutions
+npm run cli -- sync --institution TD    # Sync a single institution by name
+npm run cli -- config gmail             # Configure Gmail for automatic MFA
+DEBUG=1 npm run cli -- sync             # Verbose: logs prompts to Claude + 1s pause per tool call
 ```
 
 ## Architecture of login.ts
@@ -53,10 +59,10 @@ snapshot → Claude → tool call → execute → snapshot → …
 | `click_text` | Clicks by visible text content; useful when ARIA name differs from label |
 | `click_js` | JavaScript `.click()` via `evaluate()`; bypasses Playwright visibility checks |
 | `press_enter` | Presses Enter on a field by ARIA role + name; submits forms when button click fails |
-| `request_mfa_code` | Pauses and prompts the user for an OTP code, returns it to Claude as the tool result |
+| `request_mfa_code` | Checks Gmail for the OTP code automatically; falls back to prompting the user if not found |
 | `success` | Terminates the loop |
 
-**MFA flow:** When Claude sees an OTP screen it calls `request_mfa_code` — the tool pauses and prompts the user for the code, then returns it to Claude as the tool result. Claude fills it in and continues. No manual handoff needed.
+**MFA flow:** When Claude sees an OTP screen it calls `request_mfa_code` — the tool first polls Gmail for the code (up to 60s); if found it returns automatically, otherwise it prompts the user. Claude fills the code in and continues.
 
 **Why `domcontentloaded` not `load` after clicks:** Wealthsimple and similar SPAs never fire a second `load` event during in-app navigation. Using `load` hangs indefinitely; `domcontentloaded` with a catch is the safe alternative.
 
@@ -66,9 +72,7 @@ snapshot → Claude → tool call → execute → snapshot → …
 
 ## Adding a new institution
 
-1. Add a new entry point at the bottom of `src/login.ts` (or a new file) with the institution's login URL
-2. Add an npm script in `package.json`
-3. The login agent is institution-agnostic — no other changes needed unless the site has unusual behaviour
+Run `npm run cli -- institution add`. The login agent is institution-agnostic — no code changes needed unless the site has unusual behaviour (e.g. non-standard OTP fields). Check saved snapshots in `logs/` to see what the agent observed.
 
 ## Logs
 
