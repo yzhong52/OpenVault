@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const institutions = sqliteTable('institutions', {
   id:   text('id').primaryKey(),
@@ -22,6 +22,6 @@ export const syncs = sqliteTable('syncs', {
 export const balances = sqliteTable('balances', {
   id:          integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
   accountId:   text('account_id').notNull().references(() => accounts.id),
-  syncId:      integer('sync_id', { mode: 'number' }).notNull().references(() => syncs.id),
+  date:        text('date').notNull(),  // YYYY-MM-DD; one row per account per day
   amountCents: integer('amount_cents'),
-});
+}, t => [uniqueIndex('balances_account_date').on(t.accountId, t.date)]);

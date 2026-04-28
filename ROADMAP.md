@@ -2,13 +2,13 @@
 
 ## Schema improvements
 
-**1. Daily balance granularity**
+**1. Daily balance granularity** ✓
 Add a `date` column (`YYYY-MM-DD`) to `balances` with a unique constraint on `(account_id, date)`. Upsert on conflict so syncing twice in one day overwrites rather than appends. Removes unbounded growth from frequent syncs.
 
 **2. Latest balance on `accounts`**
 Add `latest_balance_cents` and `latest_synced_at` columns to `accounts`, updated on each sync. Makes "show current state" queries instant without a join into the time series.
 
-**3. Simplify `syncs` table**
+**3. Simplify `syncs` table** ✓
 With `date` on balances, `sync_id` as a foreign key on `balances` is redundant. Drop it from `balances`. Keep `syncs` as a lightweight audit log (when did we sync, per institution) or remove it entirely.
 
 ## Agent memory

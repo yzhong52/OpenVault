@@ -2,6 +2,10 @@ import type { Account } from './tasks/accounts';
 import { type Db } from './db';
 import { institutions, accounts as accountsTable, syncs, balances } from './db/schema';
 
+function toDateString(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 }
@@ -30,10 +34,12 @@ export function saveSync(
       })
       .run();
 
-    const sync = tx.insert(syncs)
-      .values({ institutionId, syncedAt: new Date().toISOString() })
-      .returning({ id: syncs.id })
-      .get()!;
+    const now = new Date();
+    const today = toDateString(now);
+
+    tx.insert(syncs)
+      .values({ institutionId, syncedAt: now.toISOString() })
+      .run();
 
     for (const account of accountList) {
       const accountId = `${institutionId}/${account.name}/${account.type ?? ''}`;
@@ -44,10 +50,10 @@ export function saveSync(
         .run();
 
       tx.insert(balances)
-        .values({
-          accountId,
-          syncId: sync.id,
-          amountCents: account.balance ? parseCents(account.balance) : null,
+        .values({ accountId, date: today, amountCents: account.balance ? parseCents(account.balance) : null })
+        .onConflictDoUpdate({
+          target: [balances.accountId, balances.date],
+          set: { amountCents: account.balance ? parseCents(account.balance) : null },
         })
         .run();
     }
