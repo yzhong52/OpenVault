@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import * as readline from 'readline';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
+import { fetchMfaCode } from '../gmail';
 
 export interface Credentials {
   email: string;
@@ -119,8 +120,9 @@ export async function login(page: Page, url: string, creds: Credentials): Promis
       }
 
       if (name === LOGIN_TOOL.REQUEST_MFA_CODE) {
-        const code = await promptUser(`\n${input.instructions as string}\nCode: `);
-        return code.trim();
+        console.log(`\n${input.instructions as string}`);
+        const code = await fetchMfaCode() ?? (await promptUser('Code: ')).trim();
+        return code;
       }
 
       if (name === LOGIN_TOOL.SUCCESS) {

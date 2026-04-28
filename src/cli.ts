@@ -8,6 +8,7 @@ import { findAccounts } from './tasks/accounts';
 import { keychainSave, keychainLoad } from './keychain';
 import { openDb, DATA_DIR } from './db';
 import { saveSync } from './storage';
+import { saveConfig } from './config';
 
 interface Institution {
   name: string;
@@ -176,6 +177,7 @@ More info: faq/how_to_config_gmail_for_mfa.md
 `);
     const email    = await prompt('Gmail address: ');
     const password = await promptPassword('App Password (16 chars, no spaces): ');
+    await saveConfig({ gmailAddress: email });
     keychainSave('gmail', email, password);
     console.log(`Saved Gmail credentials for ${email}`);
   });
