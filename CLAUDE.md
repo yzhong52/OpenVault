@@ -6,12 +6,12 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 
 ## Key files
 
-- `src/cli.ts` — CLI entry point; `institution add`, `sync`, `config gmail` commands
+- `src/cli.ts` — CLI entry point; `institution add`, `sync`, `accounts list`, `config gmail` commands
 - `src/keychain.ts` — macOS Keychain helpers
 - `src/config.ts` — reads/writes `~/.openvault/config.json` (non-sensitive settings)
 - `src/gmail.ts` — Gmail IMAP polling for automatic MFA code retrieval
 - `src/memory.ts` — per-institution agent memory; records click failures and injects them into future sessions to avoid repeated mistakes
-- `src/storage.ts` — saves sync results to SQLite via Drizzle ORM
+- `src/storage.ts` — saves sync results to SQLite via Drizzle ORM; `listAccounts()` reads accounts with latest balances
 - `src/agent/index.ts` — generic `runAgent()` loop, shared constants
 - `src/agent/browser.ts` — shared Playwright tool definitions and executors
 - `src/tasks/login.ts` — Claude-powered login agent (institution-agnostic)
@@ -25,6 +25,7 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 npm run cli -- institution add          # Add an institution (saves credentials to Keychain)
 npm run cli -- sync                     # Sync all institutions
 npm run cli -- sync --institution TD    # Sync a single institution by name
+npm run cli -- accounts list            # List all stored accounts and latest balances
 npm run cli -- config gmail             # Configure Gmail for automatic MFA
 DEBUG=1 npm run cli -- sync             # Verbose: logs prompts to Claude + 1s pause per tool call
 ```
