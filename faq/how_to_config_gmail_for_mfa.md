@@ -18,3 +18,10 @@ Run the built-in config command — it will prompt for your Gmail address and Ap
 ```bash
 npm run cli -- config gmail
 ```
+
+## What if my institution sends MFA codes by SMS, not email?
+
+Not every institution supports email-based MFA. If yours sends codes to your phone, you can forward those SMS messages to your Gmail inbox and OpenVault will pick them up the same way.
+
+- **Android** — [Auto Relay](https://github.com/yzhong52/auto-relay) is a simple app that forwards SMS to email automatically.
+- **iOS** — Follow the [Auto Relay iOS setup guide](https://yzhong52.github.io/auto-relay/faq/setting-up-for-ios.html) to set up an automation that does the same thing.
