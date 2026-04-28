@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
+import * as fs from 'fs/promises';
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
@@ -34,6 +35,9 @@ export async function runAgent<T>(
   onTool: (name: string, input: Record<string, unknown>, page: Page) => Promise<string | ToolDone<T>>,
 ): Promise<T> {
   const messages: MessageParam[] = [{ role: 'user', content: initialMessage }];
+  const sessionTag = new URL(page.url()).hostname.replace(/\./g, '_') + '_' + Date.now();
+  let snapCount = 0;
+  await fs.mkdir('logs', { recursive: true });
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     debug('\n── prompt to claude ──────────────────────────────');
@@ -83,12 +87,16 @@ export async function runAgent<T>(
         success = false;
       }
 
-      if (success) {
-        console.log(`✅ ${output}`);
-      } else {
+      const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
+      if (!success) {
         // Playwright errors contain ANSI colour codes; the reset prevents terminal colour bleed.
-        const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
         console.log(`❌ ${preview}\x1b[0m`);
+      } else if (toolUse.name === 'snapshot') {
+        const file = `logs/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
+        await fs.writeFile(file, output);
+        console.log(`✅ snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
+      } else {
+        console.log(`✅ ${preview}`);
       }
       if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });

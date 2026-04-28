@@ -1,6 +1,5 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import * as fs from 'fs/promises';
 import * as readline from 'readline';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
@@ -102,11 +101,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
   await page.goto(url, { waitUntil: 'load' });
   const initialSnapshot = await page.locator('body').ariaSnapshot();
 
-  await fs.mkdir('logs', { recursive: true });
-  const sessionTag = new URL(url).hostname.replace(/\./g, '_') + '_' + Date.now();
-  let snapCount = 0;
-
-  console.log('🤖 starting login...');
+  console.log('🤖 Starting login...');
 
   await runAgent<void>(
     page,
@@ -115,14 +110,6 @@ export async function login(page: Page, url: string, creds: Credentials, institu
     `The browser has navigated to the login page. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
     async (name, input, pg) => {
       switch (name) {
-        case BROWSER_TOOL.SNAPSHOT: {
-          const snapshot = await executeBrowserTool(name, input, pg);
-          const file = `logs/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
-          await fs.writeFile(file, snapshot);
-          const preview = snapshot.length > 240 ? snapshot.slice(0, 240) + '…' : snapshot;
-          console.log(`snapshot taken:\n${preview}\nsee full snapshot at: ${file}`);
-          return snapshot;
-        }
         case LOGIN_TOOL.FILL:
           await byRole(pg, input).fill(input.value as string);
           return `filled ${input.role} "${input.name}"`;
