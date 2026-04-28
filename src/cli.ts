@@ -8,7 +8,7 @@ import { findAccounts } from './tasks/accounts';
 import { keychainSave, keychainLoad } from './keychain';
 import { openDb, DATA_DIR } from './db';
 import { saveSync } from './storage';
-import { saveConfig } from './config';
+import { loadConfig, saveConfig } from './config';
 
 interface Institution {
   name: string;
@@ -174,11 +174,31 @@ How to generate one:
 
 More info: faq/how_to_config_gmail_for_mfa.md
 `);
-    const email    = await prompt('Gmail address: ');
-    const password = await promptPassword('App Password (16 chars, no spaces): ');
-    await saveConfig({ gmailAddress: email });
-    keychainSave('gmail', email, password);
-    console.log(`Saved Gmail credentials for ${email}`);
+    const existing = await loadConfig();
+    const existingEmail    = existing.gmailAddress ?? '';
+    const existingPassword = existingEmail ? (keychainLoad('gmail', existingEmail) ?? '') : '';
+
+    const emailInput = await prompt(
+      existingEmail ? `Gmail address [${existingEmail}]: ` : 'Gmail address: ',
+    );
+    const newEmail = emailInput.trim() || existingEmail;
+
+    const maskedPassword = existingPassword.length >= 2
+      ? existingPassword[0] + '*'.repeat(existingPassword.length - 2) + existingPassword.at(-1)
+      : existingPassword ? '*'.repeat(existingPassword.length) : '';
+    const passwordInput = await promptPassword(
+      maskedPassword ? `App Password [${maskedPassword}]: ` : 'App Password (16 chars, no spaces): ',
+    );
+    const newPassword = passwordInput.trim() || existingPassword;
+
+    if (!newEmail || !newPassword) {
+      console.log('Aborted — email and password are both required.');
+      return;
+    }
+
+    await saveConfig({ gmailAddress: newEmail });
+    keychainSave('gmail', newEmail, newPassword);
+    console.log(`Saved Gmail credentials for ${newEmail}`);
   });
 
 program.parse();
