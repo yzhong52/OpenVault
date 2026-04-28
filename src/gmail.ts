@@ -24,34 +24,31 @@ export async function fetchMfaCode(since: Date): Promise<string | null> {
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
 
-  process.stdout.write('Checking Gmail for MFA code');
+  console.log('Checking Gmail for MFA code...');
 
   try {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
 
     try {
+      let attempt = 0;
       while (Date.now() < deadline) {
         // NOOP flushes pending server notifications so new messages appear in SEARCH
         await client.noop();
         const code = await searchForCode(client, since);
-        if (code) {
-          process.stdout.write('\n');
-          return code;
-        }
-        process.stdout.write('.');
+        if (code) return code;
+        if (++attempt % 5 === 0) console.log('Still waiting for MFA email...');
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
       }
     } finally {
       lock.release();
     }
   } catch (err) {
-    console.warn(`\nGmail check failed: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(`Gmail check failed: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     await client.logout().catch(() => {});
   }
 
-  process.stdout.write('\n');
   return null;
 }
 
