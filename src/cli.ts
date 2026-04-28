@@ -113,7 +113,6 @@ program
     }
 
     await fs.mkdir(PROFILE_DIR, { recursive: true });
-    await fs.mkdir('logs', { recursive: true });
 
     const { db, close } = openDb();
     const context = await chromium.launchPersistentContext(
@@ -136,7 +135,7 @@ program
         }
 
         console.log(`\nSyncing ${inst.name}...`);
-        await login(page, inst.url, { email: inst.username, password });
+        await login(page, inst.url, { username: inst.username, password });
 
         const accounts = await findAccounts(page);
         saveSync(db, inst.name, inst.url, accounts);

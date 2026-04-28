@@ -7,7 +7,7 @@ import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agen
 import { fetchMfaCode } from '../gmail';
 
 export interface Credentials {
-  email: string;
+  username: string;
   password: string;
 }
 
@@ -16,8 +16,8 @@ function buildSystemPrompt(creds: Credentials): string {
 You are a browser automation agent. Your job is to log into a financial institution website.
 
 Credentials to use:
-  Email / username: ${creds.email}
-  Password:         ${creds.password}
+  Username: ${creds.username}
+  Password: ${creds.password}
 
 Login flow:
   1. An initial accessibility snapshot is already provided — use it to identify the login form fields.
