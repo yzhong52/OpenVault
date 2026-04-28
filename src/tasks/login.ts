@@ -106,7 +106,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
   const sessionTag = new URL(url).hostname.replace(/\./g, '_') + '_' + Date.now();
   let snapCount = 0;
 
-  console.log('agent: starting login...');
+  console.log('🤖 starting login...');
 
   await runAgent<void>(
     page,
@@ -156,7 +156,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
     },
   );
 
-  console.log('agent: login complete');
+  console.log('🤖 login complete');
 }
 
 function promptUser(question: string): Promise<string> {

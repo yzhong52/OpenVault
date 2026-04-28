@@ -66,9 +66,10 @@ export async function runAgent<T>(
         continue;
       }
 
-      console.log(`[turn ${turn + 1}/${MAX_TURNS}] [tool] ${toolUse.name}`, toolUse.input);
+      console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🔧 ${toolUse.name}`, toolUse.input);
 
       let output = '';
+      let success = true;
       try {
         const r = await onTool(toolUse.name, toolUse.input as Record<string, unknown>, page);
         if (isDone(r)) {
@@ -79,9 +80,11 @@ export async function runAgent<T>(
         output = r;
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
+        success = false;
       }
 
-      console.log(`[turn ${turn + 1}/${MAX_TURNS}] [tool] → ${output.length > 120 ? output.slice(0, 120) + '…' : output}`);
+      const preview = output.length > 120 ? output.slice(0, 120) + '…' : output;
+      console.log(`         ${success ? '✅' : '❌'} ${preview}`);
       if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
     }

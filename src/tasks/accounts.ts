@@ -50,7 +50,7 @@ Steps:
 Do not navigate away from the dashboard. Do not click login/logout links.`;
 
 export async function findAccounts(page: Page): Promise<Account[]> {
-  console.log('agent: finding accounts...');
+  console.log('🤖 finding accounts...');
 
   return runAgent<Account[]>(
     page,
