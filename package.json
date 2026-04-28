@@ -3,17 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "cli": "tsx src/cli.ts"
+    "cli": "tsx src/cli.ts",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
     "better-sqlite3": "^12.9.0",
     "commander": "^14.0.3",
+    "drizzle-orm": "^0.45.2",
     "playwright": "^1.52.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
   }

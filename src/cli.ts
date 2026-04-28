@@ -1,13 +1,13 @@
 import { Command } from 'commander';
 import { chromium } from 'playwright';
 import * as fs from 'fs/promises';
-import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 import { login } from './tasks/login';
 import { findAccounts } from './tasks/accounts';
 import { keychainSave, keychainLoad } from './keychain';
-import { openDb, saveSync } from './storage';
+import { openDb, DATA_DIR } from './db';
+import { saveSync } from './storage';
 
 interface Institution {
   name: string;
@@ -15,7 +15,6 @@ interface Institution {
   username: string;
 }
 
-const DATA_DIR          = path.join(os.homedir(), '.openvault');
 const INSTITUTIONS_FILE = path.join(DATA_DIR, 'accounts.json');
 const PROFILE_DIR       = process.env.OPENVAULT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
 
@@ -115,7 +114,7 @@ program
     await fs.mkdir(PROFILE_DIR, { recursive: true });
     await fs.mkdir('logs', { recursive: true });
 
-    const db = openDb();
+    const { db, close } = openDb();
     const context = await chromium.launchPersistentContext(
       PROFILE_DIR,
       {
@@ -148,7 +147,7 @@ program
         }
       }
     } finally {
-      db.close();
+      close();
       await prompt('\nPress Enter to close... ');
       await context.close();
     }

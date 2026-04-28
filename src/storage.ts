@@ -1,45 +1,6 @@
-import Database from 'better-sqlite3';
-import * as path from 'path';
-import * as os from 'os';
 import type { Account } from './tasks/accounts';
-
-const DB_PATH = path.join(os.homedir(), '.openvault', 'data.db');
-
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS institutions (
-    id   TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    url  TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS accounts (
-    id             TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id),
-    name           TEXT NOT NULL,
-    type           TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS syncs (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    institution_id TEXT    NOT NULL REFERENCES institutions(id),
-    synced_at      TEXT    NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS balances (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id   TEXT    NOT NULL REFERENCES accounts(id),
-    sync_id      INTEGER NOT NULL REFERENCES syncs(id),
-    amount_cents INTEGER
-  );
-`;
-
-export function openDb(): Database.Database {
-  const db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(SCHEMA);
-  return db;
-}
+import { type Db } from './db';
+import { institutions, accounts as accountsTable, syncs, balances } from './db/schema';
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -53,34 +14,42 @@ function parseCents(raw: string): number | null {
 }
 
 export function saveSync(
-  db: Database.Database,
+  db: Db,
   institutionName: string,
   institutionUrl: string,
-  accounts: Account[],
+  accountList: Account[],
 ): void {
   const institutionId = slugify(institutionName);
 
-  db.transaction(() => {
-    db.prepare(`
-      INSERT INTO institutions (id, name, url) VALUES (?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET name = excluded.name, url = excluded.url
-    `).run(institutionId, institutionName, institutionUrl);
+  db.transaction((tx) => {
+    tx.insert(institutions)
+      .values({ id: institutionId, name: institutionName, url: institutionUrl })
+      .onConflictDoUpdate({
+        target: institutions.id,
+        set: { name: institutionName, url: institutionUrl },
+      })
+      .run();
 
-    const { lastInsertRowid: syncId } = db.prepare(`
-      INSERT INTO syncs (institution_id, synced_at) VALUES (?, ?)
-    `).run(institutionId, new Date().toISOString());
+    const sync = tx.insert(syncs)
+      .values({ institutionId, syncedAt: new Date().toISOString() })
+      .returning({ id: syncs.id })
+      .get()!;
 
-    for (const account of accounts) {
+    for (const account of accountList) {
       const accountId = `${institutionId}/${account.name}/${account.type ?? ''}`;
 
-      db.prepare(`
-        INSERT INTO accounts (id, institution_id, name, type) VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO NOTHING
-      `).run(accountId, institutionId, account.name, account.type ?? null);
+      tx.insert(accountsTable)
+        .values({ id: accountId, institutionId, name: account.name, type: account.type })
+        .onConflictDoNothing()
+        .run();
 
-      db.prepare(`
-        INSERT INTO balances (account_id, sync_id, amount_cents) VALUES (?, ?, ?)
-      `).run(accountId, syncId, account.balance ? parseCents(account.balance) : null);
+      tx.insert(balances)
+        .values({
+          accountId,
+          syncId: sync.id,
+          amountCents: account.balance ? parseCents(account.balance) : null,
+        })
+        .run();
     }
-  })();
+  });
 }
