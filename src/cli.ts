@@ -153,4 +153,31 @@ program
     }
   });
 
+const config = program.command('config').description('Manage OpenVault configuration');
+
+config
+  .command('gmail')
+  .description('Save Gmail credentials for MFA email reading')
+  .action(async () => {
+    console.log(`
+OpenVault can read MFA codes sent to your Gmail automatically, so you don't
+have to copy-paste them during sync.
+
+This requires a Gmail App Password — a 16-character code that lets OpenVault
+read your email without needing your Google account password.
+
+How to generate one:
+  1. Go to https://myaccount.google.com/apppasswords
+  2. Sign in and click "Create a new app password"
+  3. Name it "OpenVault", click Create
+  4. Copy the 16-character password shown (no spaces)
+
+More info: faq/how_to_config_gmail_for_mfa.md
+`);
+    const email    = await prompt('Gmail address: ');
+    const password = await promptPassword('App Password (16 chars, no spaces): ');
+    keychainSave('gmail', email, password);
+    console.log(`Saved Gmail credentials for ${email}`);
+  });
+
 program.parse();
