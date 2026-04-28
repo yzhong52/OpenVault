@@ -1,7 +1,7 @@
 import { eq, desc } from 'drizzle-orm';
-import type { Account } from './tasks/accounts';
-import { type Db } from './db';
-import { institutions, accounts as accountsTable, syncs, balances } from './db/schema';
+import type { Account } from '../tasks/accounts';
+import { type Db } from '.';
+import { institutions, accounts as accountsTable, syncs, balances } from './schema';
 
 function toDateString(d: Date): string {
   return d.toISOString().slice(0, 10);

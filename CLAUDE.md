@@ -6,18 +6,23 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 
 ## Key files
 
-- `src/cli.ts` — CLI entry point; `institution add`, `sync`, `accounts list`, `config gmail` commands
+- `src/cli.ts` — CLI entry point; wires up all subcommands
+- `src/commands/institution.ts` — `institution add` command
+- `src/commands/sync.ts` — `sync` command
+- `src/commands/accounts.ts` — `accounts list` command
+- `src/commands/config.ts` — `config gmail` command
+- `src/commands/utils.ts` — shared CLI helpers: `prompt`, `promptPassword`, `readInstitutions`, `writeInstitutions`
 - `src/keychain.ts` — macOS Keychain helpers
 - `src/config.ts` — reads/writes `~/.openvault/config.json` (non-sensitive settings)
 - `src/gmail.ts` — Gmail IMAP polling for automatic MFA code retrieval
 - `src/memory.ts` — per-institution agent memory; records click failures and injects them into future sessions to avoid repeated mistakes
-- `src/storage.ts` — saves sync results to SQLite via Drizzle ORM; `listAccounts()` reads accounts with latest balances
 - `src/agent/index.ts` — generic `runAgent()` loop, shared constants
 - `src/agent/browser.ts` — shared Playwright tool definitions and executors
 - `src/tasks/login.ts` — Claude-powered login agent (institution-agnostic)
 - `src/tasks/accounts.ts` — Claude-powered account discovery agent
 - `src/db/schema.ts` — Drizzle table definitions
 - `src/db/index.ts` — DB connection and auto-migration
+- `src/db/storage.ts` — `saveSync()` writes sync results; `listAccounts()` reads accounts with latest balances
 
 ## Running
 
