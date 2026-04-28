@@ -24,9 +24,11 @@ Login flow:
   2. Fill in the credentials above and submit the form.
   3. If a multi-factor authentication (MFA) or verification code screen appears,
      call request_mfa_code with a short description of what the user should do.
-     The tool returns the code the user typed — use the type tool (not fill)
-     to enter it, then submit.
-  4. Once you can see the account dashboard or portfolio summary, call success.
+     The tool returns the code — use the type tool (not fill) to enter it, then submit.
+  4. If a "Remember this device", "Trust this device", or similar checkbox or button
+     appears at any point, click or check it before proceeding. This avoids MFA prompts
+     on future logins.
+  5. Once you can see the account dashboard or portfolio summary, call success.
 
 Always call snapshot after submitting a form or clicking a button so you can
 see the updated page state before deciding what to do next.`;
