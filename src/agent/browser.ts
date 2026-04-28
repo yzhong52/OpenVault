@@ -99,18 +99,18 @@ export async function executeBrowserTool(
       return page.locator('body').ariaSnapshot();
 
     case BROWSER_TOOL.CLICK:
-      await byRole(page, input).click();
+      await byRole(page, input).click({ timeout: 5000 });
       await afterClick(page);
       return `clicked ${input.role} "${input.name}"`;
 
     case BROWSER_TOOL.CLICK_TESTID:
-      await page.getByTestId(input.testId as string).click();
+      await page.getByTestId(input.testId as string).click({ timeout: 5000 });
       await afterClick(page);
       return `clicked [data-testid="${input.testId}"]`;
 
     case BROWSER_TOOL.CLICK_TEXT: {
       const exact = input.exact !== false;
-      await page.getByText(input.text as string, { exact }).click();
+      await page.getByText(input.text as string, { exact }).click({ timeout: 5000 });
       await afterClick(page);
       return `clicked text "${input.text}"`;
     }
@@ -121,7 +121,7 @@ export async function executeBrowserTool(
       return `js-clicked "${input.selector}"`;
 
     case BROWSER_TOOL.PRESS_ENTER:
-      await byRole(page, input).press('Enter');
+      await byRole(page, input).press('Enter', { timeout: 5000 });
       await afterClick(page);
       return `pressed Enter on ${input.role} "${input.name}"`;
 
