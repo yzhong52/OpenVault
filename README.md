@@ -7,6 +7,8 @@ Aggregate accounts, balances, and transactions from any financial institution �
 
 ## Setup
 
+Install dependencies and Playwright:
+
 ```bash
 npm install
 npx playwright install chromium
@@ -18,12 +20,42 @@ Set your Anthropic API key:
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+## Quick start
+
+Add an institution:
+
+```bash
+npm run cli -- institution add
+```
+
+Sync that institution:
+
+```bash
+npm run cli -- sync --institution "TD"
+```
+
+List the latest stored balances:
+
+```bash
+npm run cli -- accounts list
+```
+
+## Local storage
+
+OpenVault stores all data on your machine:
+
+- Institution metadata is saved in `~/.openvault/accounts.json`
+- Passwords are saved in macOS Keychain
+- Synced balances are saved in `~/.openvault/data.db`
+- Browser session state is saved in `~/.openvault/browser-profile`
+- Per-institution agent memory is saved in `~/.openvault/memory/`
+
 ## How it works
 
 Each sync runs a three-step agent pipeline per institution:
 
 1. **Login** (`src/tasks/login.ts`) — navigates to the institution's login page, fills credentials, handles MFA, and waits for the dashboard.
-2. **Accounts** (`src/tasks/explore.ts`) — scans the dashboard to discover all accounts, types, and balances. <!-- TODO: rename explore.ts → accounts.ts -->
+2. **Account discovery** (`src/tasks/explore.ts`) — scans the dashboard to discover all accounts, types, and balances.
 3. **Transactions** — downloads the latest activity and transactions for each account. <!-- TODO: implement src/tasks/transactions.ts -->
 
 After each step, the agent reflects on what worked and what didn't, and writes a short set of notes that are injected into the next session. This means the agent gets faster and more reliable over time for each institution it's seen before.
@@ -46,6 +78,12 @@ npm run cli -- sync
 
 Opens a real Chrome window, logs into each saved institution, extracts all accounts and balances, and saves them to a local SQLite database.
 
+**Sync one institution:**
+
+```bash
+npm run cli -- sync --institution "TD"
+```
+
 ## MFA
 
 OpenVault handles MFA automatically when possible. When a verification code screen appears, it first checks your Gmail inbox for the code — if found, it fills it in without any input from you. If Gmail isn't configured or no code arrives within 60 seconds, it falls back to prompting you to enter the code manually.
@@ -57,6 +95,14 @@ npm run cli -- config gmail
 ```
 
 See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for setup instructions, including how to forward SMS codes to Gmail if your institution sends MFA codes by text.
+
+## Troubleshooting
+
+- If you see an Anthropic authentication error, make sure `ANTHROPIC_API_KEY` is set in the shell where you run the CLI.
+- If browser launch fails, make sure Google Chrome is installed and `npx playwright install chromium` has been run.
+- If MFA auto-fill does not work, run `npm run cli -- config gmail` and verify the Gmail App Password.
+- If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `logs/`.
+- For more verbose agent output, run `DEBUG=1 npm run cli -- sync`.
 
 ## Requirements
 

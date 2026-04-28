@@ -1,5 +1,17 @@
 # Developer Notes
 
+## What lives where
+
+Runtime state is stored outside the repo in `~/.openvault/`:
+
+- `accounts.json` — saved institutions and usernames
+- `config.json` — non-secret config such as Gmail address
+- `data.db` — SQLite database with institutions, accounts, syncs, and balances
+- `memory/*.json` — per-institution agent notes injected into future prompts
+- `browser-profile/` — persistent Chrome profile used during syncs
+
+Passwords are not stored in those files. Institution and Gmail credentials live in macOS Keychain via `src/keychain.ts`.
+
 ## Useful commands
 
 Sync a single institution instead of all:
@@ -14,7 +26,32 @@ Debug mode — logs each prompt sent to Claude and pauses 1s between tool calls:
 DEBUG=1 npm run cli -- sync
 ```
 
+Add an institution:
+
+```bash
+npm run cli -- institution add
+```
+
+Configure Gmail for automatic MFA:
+
+```bash
+npm run cli -- config gmail
+```
+
+List all stored accounts and their latest balances:
+
+```bash
+npm run cli -- accounts list
+```
+
 Accessibility snapshots are saved to `logs/<hostname>_<timestamp>_NNN.txt` after each `snapshot` tool call, useful for diagnosing selector issues.
+
+## Debugging login issues
+
+- Re-run with `DEBUG=1` to see each Claude tool call and tool result.
+- Check `logs/*.txt` to inspect the ARIA snapshots the agent actually saw.
+- If the institution uses a multi-step or unusual login widget, start by reproducing it with `npm run cli -- sync --institution "<name>"` before changing prompts or tools.
+- If MFA is involved, confirm whether the code was expected from Gmail or manual entry.
 
 ## Inspecting synced data
 
