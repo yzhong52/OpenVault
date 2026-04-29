@@ -21,12 +21,13 @@ export const BROWSER_TOOLS: Tool[] = [
   },
   {
     name: BROWSER_TOOL.CLICK,
-    description: 'Click an element identified by its ARIA role and accessible name.',
+    description: 'Click an element identified by its ARIA role and accessible name. Pass frame when the element is inside an iframe.',
     input_schema: {
       type: 'object',
       properties: {
-        role: { type: 'string', description: 'ARIA role, e.g. button, link' },
-        name: { type: 'string', description: 'Accessible name of the element' },
+        role:  { type: 'string', description: 'ARIA role, e.g. button, link' },
+        name:  { type: 'string', description: 'Accessible name of the element' },
+        frame: { type: 'string', description: 'CSS selector for the containing iframe, if any' },
       },
       required: ['role', 'name'],
     },
@@ -56,11 +57,12 @@ export const BROWSER_TOOLS: Tool[] = [
   },
   {
     name: BROWSER_TOOL.CLICK_JS,
-    description: 'Click an element using a JavaScript querySelector. Use as a last resort when Playwright click fails due to visibility or overlap checks.',
+    description: 'Click an element using a CSS selector. Use as a last resort when click fails. Pass frame when the element is inside an iframe.',
     input_schema: {
       type: 'object',
       properties: {
         selector: { type: 'string', description: 'CSS selector for the element' },
+        frame:    { type: 'string', description: 'CSS selector for the containing iframe, if any' },
       },
       required: ['selector'],
     },
@@ -101,12 +103,13 @@ export const BROWSER_TOOLS: Tool[] = [
   },
   {
     name: BROWSER_TOOL.PRESS_ENTER,
-    description: 'Press the Enter key on an element identified by ARIA role and name. Use to submit forms when clicking the submit button fails.',
+    description: 'Press the Enter key on an element identified by ARIA role and name. Use to submit forms when clicking the submit button fails. Pass frame when the element is inside an iframe.',
     input_schema: {
       type: 'object',
       properties: {
-        role: { type: 'string' },
-        name: { type: 'string' },
+        role:  { type: 'string' },
+        name:  { type: 'string' },
+        frame: { type: 'string', description: 'CSS selector for the containing iframe, if any' },
       },
       required: ['role', 'name'],
     },
@@ -135,10 +138,14 @@ export async function executeBrowserTool(
     case BROWSER_TOOL.SNAPSHOT:
       return page.locator('body').ariaSnapshot();
 
-    case BROWSER_TOOL.CLICK:
-      await byRole(page, input).click({ timeout: 5000 });
+    case BROWSER_TOOL.CLICK: {
+      const clickLocator = input.frame
+        ? page.frameLocator(input.frame as string).getByRole(input.role as Parameters<typeof page.getByRole>[0], { name: input.name as string })
+        : byRole(page, input);
+      await clickLocator.click({ timeout: 5000 });
       await afterClick(page);
       return `clicked ${input.role} "${input.name}"`;
+    }
 
     case BROWSER_TOOL.CLICK_TESTID:
       await page.getByTestId(input.testId as string).click({ timeout: 5000 });
@@ -152,10 +159,14 @@ export async function executeBrowserTool(
       return `clicked text "${input.text}"`;
     }
 
-    case BROWSER_TOOL.CLICK_JS:
-      await page.$eval(input.selector as string, (el: HTMLElement) => el.click());
+    case BROWSER_TOOL.CLICK_JS: {
+      const jsTarget = input.frame
+        ? page.frameLocator(input.frame as string).locator(input.selector as string)
+        : page.locator(input.selector as string);
+      await jsTarget.evaluate((el: HTMLElement) => el.click());
       await afterClick(page);
       return `js-clicked "${input.selector}"`;
+    }
 
     case BROWSER_TOOL.FRAME_SNAPSHOT:
       return page.frameLocator(input.frame as string).locator('body').ariaSnapshot();
@@ -183,10 +194,14 @@ export async function executeBrowserTool(
       return `filled "${input.selector}"${input.frame ? ` in ${input.frame}` : ''}`;
     }
 
-    case BROWSER_TOOL.PRESS_ENTER:
-      await byRole(page, input).press('Enter', { timeout: 5000 });
+    case BROWSER_TOOL.PRESS_ENTER: {
+      const enterLocator = input.frame
+        ? page.frameLocator(input.frame as string).getByRole(input.role as Parameters<typeof page.getByRole>[0], { name: input.name as string })
+        : byRole(page, input);
+      await enterLocator.press('Enter', { timeout: 5000 });
       await afterClick(page);
       return `pressed Enter on ${input.role} "${input.name}"`;
+    }
 
     default:
       return `unknown tool: ${name}`;
