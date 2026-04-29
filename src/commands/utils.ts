@@ -9,7 +9,7 @@ export interface Institution {
   username: string;
 }
 
-export const INSTITUTIONS_FILE = path.join(DATA_DIR, 'accounts.json');
+export const INSTITUTIONS_FILE = path.join(DATA_DIR, 'institutions.json');
 export const PROFILE_DIR = process.env.OPENVAULT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
 
 export async function readInstitutions(): Promise<Institution[]> {
