@@ -52,6 +52,15 @@ export async function fetchMfaCode(since: Date): Promise<string | null> {
   return null;
 }
 
+export function extractMfaCode(text: string): string | null {
+  // Try contextual match first — avoids matching SMS shortcodes or phone numbers
+  // that appear earlier in the raw email source (e.g. "From: 864674").
+  const contextual = text.match(/(?:security code|verification code|one.time.{0,6}code|otp|passcode)\D{0,10}(\d{4,8})/i);
+  if (contextual) return contextual[1];
+  const fallback = text.match(/\b(\d{6})\b/);
+  return fallback ? fallback[1] : null;
+}
+
 async function searchForCode(client: ImapFlow, since: Date): Promise<string | null> {
   // IMAP SINCE is day-granular; we filter by exact internalDate after fetching
   const today = new Date();
@@ -63,9 +72,8 @@ async function searchForCode(client: ImapFlow, since: Date): Promise<string | nu
   const range = uids.slice(-10).join(',');
   for await (const msg of client.fetch(range, { internalDate: true, source: true }, { uid: true })) {
     if (!msg.internalDate || msg.internalDate < since || !msg.source) continue;
-    const text = msg.source.toString();
-    const match = text.match(/\b(\d{6})\b/);
-    if (match) return match[1];
+    const code = extractMfaCode(msg.source.toString());
+    if (code) return code;
   }
 
   return null;

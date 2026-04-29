@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "cli": "tsx src/cli.ts",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
@@ -19,6 +20,7 @@
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.5"
   }
 }
