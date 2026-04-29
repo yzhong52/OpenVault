@@ -3,10 +3,12 @@ import type { MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resourc
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import { BROWSER_TOOL } from './browser';
+import { LOGS_DIR } from '../db';
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
 export const DEBUG = process.env.DEBUG === '1';
+const MAX_SNAPSHOTS_PER_HOST = 100;
 
 export function debug(...args: unknown[]): void {
   if (DEBUG) console.log(...args);
@@ -28,6 +30,25 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
+function snapshotHostPrefix(filename: string): string | null {
+  const match = filename.match(/^(.*)_\d+_\d{3}\.txt$/);
+  return match ? match[1] : null;
+}
+
+async function pruneSnapshotsForHost(hostPrefix: string): Promise<void> {
+  const entries = await fs.readdir(LOGS_DIR, { withFileTypes: true }).catch(() => []);
+  const files = entries
+    .filter(entry => entry.isFile())
+    .map(entry => entry.name)
+    .filter(name => snapshotHostPrefix(name) === hostPrefix)
+    .sort()
+    .reverse();
+
+  for (const name of files.slice(MAX_SNAPSHOTS_PER_HOST)) {
+    await fs.unlink(`${LOGS_DIR}/${name}`).catch(() => {});
+  }
+}
+
 export async function runAgent<T>(
   page: Page,
   tools: Tool[],
@@ -36,9 +57,10 @@ export async function runAgent<T>(
   onTool: (name: string, input: Record<string, unknown>, page: Page) => Promise<string | ToolDone<T>>,
 ): Promise<T> {
   const messages: MessageParam[] = [{ role: 'user', content: initialMessage }];
-  const sessionTag = new URL(page.url()).hostname.replace(/\./g, '_') + '_' + Date.now();
+  const hostPrefix = new URL(page.url()).hostname.replace(/\./g, '_');
+  const sessionTag = hostPrefix + '_' + Date.now();
   let snapCount = 0;
-  await fs.mkdir('logs', { recursive: true });
+  await fs.mkdir(LOGS_DIR, { recursive: true });
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     debug('\n── prompt to claude ──────────────────────────────');
@@ -85,8 +107,9 @@ export async function runAgent<T>(
 
         const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
         if (toolUse.name === BROWSER_TOOL.SNAPSHOT) {
-          const file = `logs/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
+          const file = `${LOGS_DIR}/${sessionTag}_${String(++snapCount).padStart(3, '0')}.txt`;
           await fs.writeFile(file, output);
+          await pruneSnapshotsForHost(hostPrefix);
           console.log(`✅ snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
         } else {
           console.log(`✅ ${preview}`);

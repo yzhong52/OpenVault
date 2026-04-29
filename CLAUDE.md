@@ -105,11 +105,11 @@ OpenVault keeps lightweight per-institution memory so the agent can carry forwar
 
 ## Adding a new institution
 
-Run `npm run cli -- institution add`. The login agent is institution-agnostic — no code changes needed unless the site has unusual behaviour (e.g. non-standard OTP fields). Check saved snapshots in `logs/` to see what the agent observed.
+Run `npm run cli -- institution add`. The login agent is institution-agnostic — no code changes needed unless the site has unusual behaviour (e.g. non-standard OTP fields). Check saved snapshots in `~/.openvault/logs/` to see what the agent observed.
 
 ## Logs
 
-Accessibility snapshots are saved to `logs/<hostname>_<timestamp>_<n>.txt` after each `snapshot` tool call. These are gitignored and useful for debugging selector issues.
+Accessibility snapshots are saved to `~/.openvault/logs/<hostname>_<timestamp>_<n>.txt` after each `snapshot` tool call. These are local-only and useful for debugging selector issues.
 
 ## Adding a new task
 

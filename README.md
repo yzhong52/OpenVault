@@ -49,6 +49,7 @@ OpenVault stores all data on your machine:
 - Synced balances are saved in `~/.openvault/data.db`
 - Browser session state is saved in `~/.openvault/browser-profile`
 - Per-institution agent memory is saved in `~/.openvault/memory/`
+- Debug snapshots are saved in `~/.openvault/logs/`
 
 ## How it works
 
@@ -101,7 +102,8 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 - If you see an Anthropic authentication error, make sure `ANTHROPIC_API_KEY` is set in the shell where you run the CLI.
 - If browser launch fails, make sure Google Chrome is installed and `npx playwright install chromium` has been run.
 - If MFA auto-fill does not work, run `npm run cli -- config gmail` and verify the Gmail App Password.
-- If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `logs/`.
+- If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `~/.openvault/logs/`.
+- Snapshot retention is capped per host, so only the most recent debug history for each site is kept.
 - For more verbose agent output, run `DEBUG=1 npm run cli -- sync`.
 
 ## Requirements
