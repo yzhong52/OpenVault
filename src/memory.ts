@@ -16,6 +16,7 @@ const BAD_SUMMARY_PATTERNS = [
   /you haven't provided/i,
   /session (data|details).*(empty|weren't included)/i,
 ];
+const PREFERRED_TASK_ORDER = ['login', 'accounts'];
 
 function normalizeNotes(notes: string | undefined): string {
   const trimmed = notes?.trim() ?? '';
@@ -24,14 +25,56 @@ function normalizeNotes(notes: string | undefined): string {
   return trimmed;
 }
 
-function memoryPath(institutionName: string): string {
-  const slug = institutionName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  return path.join(DATA_DIR, 'memory', `${slug}.json`);
+function memorySlug(institutionName: string): string {
+  return institutionName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+function markdownMemoryPath(institutionName: string): string {
+  return path.join(DATA_DIR, 'memory', `${memorySlug(institutionName)}.md`);
+}
+
+function parseMarkdownMemory(content: string): MemoryFile {
+  const file: MemoryFile = {};
+  let currentTask = '';
+  let buffer: string[] = [];
+
+  const flush = () => {
+    if (!currentTask) return;
+    const notes = normalizeNotes(buffer.join('\n'));
+    if (notes) file[currentTask] = notes;
+  };
+
+  for (const line of content.split('\n')) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      flush();
+      currentTask = heading[1].trim().toLowerCase();
+      buffer = [];
+      continue;
+    }
+    if (currentTask) buffer.push(line);
+  }
+
+  flush();
+  return file;
+}
+
+function serializeMarkdownMemory(slug: string, file: MemoryFile): string {
+  const orderedTasks = [
+    ...PREFERRED_TASK_ORDER.filter(task => file[task]),
+    ...Object.keys(file).filter(task => !PREFERRED_TASK_ORDER.includes(task)).sort(),
+  ];
+  const sections = orderedTasks
+    .map(task => file[task] ? `## ${task}\n${file[task]}` : '')
+    .filter(Boolean);
+
+  if (sections.length === 0) return `# ${slug}\n`;
+  return `# ${slug}\n\n${sections.join('\n\n')}\n`;
 }
 
 async function readMemoryFile(institutionName: string): Promise<MemoryFile> {
   try {
-    return JSON.parse(await fs.readFile(memoryPath(institutionName), 'utf-8'));
+    return parseMarkdownMemory(await fs.readFile(markdownMemoryPath(institutionName), 'utf-8'));
   } catch {
     return {};
   }
@@ -49,7 +92,7 @@ export async function saveMemoryNotes(institutionName: string, task: string, not
   await fs.mkdir(dir, { recursive: true });
   const file = await readMemoryFile(institutionName);
   file[task] = normalized;
-  await fs.writeFile(memoryPath(institutionName), JSON.stringify(file, null, 2) + '\n');
+  await fs.writeFile(markdownMemoryPath(institutionName), serializeMarkdownMemory(memorySlug(institutionName), file));
 }
 
 export function formatMemoryForPrompt(notes: string, task: string): string {
@@ -75,5 +118,5 @@ export async function generateSessionNotes(events: ToolEvent[], taskContext: str
   });
 
   const block = response.content.find(b => b.type === 'text');
-  return normalizeNotes(block?.type === 'text' ? block.text : '');
+  return normalizeNotes(block?.text);
 }
