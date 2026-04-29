@@ -7,7 +7,7 @@ Runtime state is stored outside the repo in `~/.openvault/`:
 - `accounts.json` — saved institutions and usernames
 - `config.json` — non-secret config such as Gmail address
 - `data.db` — SQLite database with institutions, accounts, syncs, and balances
-- `memory/*.json` — per-institution agent notes injected into future prompts
+- `memory/*.md` — per-institution agent notes injected into future prompts
 - `browser-profile/` — persistent Chrome profile used during syncs
 
 Passwords are not stored in those files. Institution and Gmail credentials live in macOS Keychain via `src/keychain.ts`.
@@ -45,6 +45,17 @@ npm run cli -- accounts list
 ```
 
 Accessibility snapshots are saved to `logs/<hostname>_<timestamp>_NNN.txt` after each `snapshot` tool call, useful for diagnosing selector issues.
+
+## Agent memory
+
+Per-institution notes live in `~/.openvault/memory/<institution>.md`.
+
+- Each file is Markdown with sections like `## login` and `## accounts`.
+- Notes are written only after successful task completion.
+- `src/tasks/login.ts` and `src/tasks/accounts.ts` both load notes for their task and inject them into the next system prompt.
+- `src/memory.ts` filters out empty or obviously bogus summaries before saving.
+
+If a memory file looks wrong, open it directly and inspect the task section for that institution. If needed, you can edit or delete the file and let the next successful run regenerate it.
 
 ## Debugging login issues
 

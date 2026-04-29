@@ -75,7 +75,33 @@ snapshot → Claude → tool call → execute → snapshot → …
 
 **Why two fill tools:** `fill()` is fast and reliable for text inputs. OTP fields in SPAs often gate the submit button on keystroke events, which `fill()` doesn't fire. `pressSequentially()` simulates real typing.
 
-**Error handling in tool execution:** Playwright errors (e.g. strict mode violations when a locator matches multiple elements) are caught and returned to Claude as the tool result string. Claude can then retry with a more specific selector (e.g. `click_testid`). All click tool failures are persisted to `~/.openvault/memory/<institution>.json` and injected into the system prompt on the next session so the agent doesn't repeat the same mistake.
+**Error handling in tool execution:** Playwright errors (e.g. strict mode violations when a locator matches multiple elements) are caught and returned to Claude as the tool result string. Claude can then retry with a more specific selector (e.g. `click_testid`). Session notes are persisted to `~/.openvault/memory/<institution>.md` and injected into the system prompt on the next session so the agent doesn't repeat the same mistake.
+
+## Agent memory
+
+OpenVault keeps lightweight per-institution memory so the agent can carry forward what it learned from previous runs without hardcoding institution-specific logic.
+
+**Where it lives:** Memory is stored in `~/.openvault/memory/<institution>.md`, where `<institution>` is a lowercase slug such as `wealthsimple.md`.
+
+**Format:** Each file is Markdown with one section per task, for example:
+
+```md
+# wealthsimple
+
+## login
+- Prefer `click_testid("login-form-submit-ftux")` over `click(button "Log in")`
+
+## accounts
+- Accounts are visible directly on the dashboard after login
+```
+
+**Tasks using memory today:** `login` and `accounts`.
+
+**How notes are generated:** After a task completes successfully, the task passes its recorded tool events to `generateSessionNotes()` in `src/memory.ts`. That function asks Claude to summarize what worked, what failed, and any unusual page structure worth remembering next time.
+
+**How notes are reused:** On the next run for the same institution and task, `loadMemoryNotes()` reads the relevant Markdown section and `formatMemoryForPrompt()` appends it to the task's system prompt.
+
+**What gets filtered out:** Empty summaries are discarded, and obviously bad summaries such as "please provide session data" are dropped instead of being saved back into memory.
 
 ## Adding a new institution
 
