@@ -88,9 +88,9 @@ const LOGIN_TOOLS: Tool[] = [
 
 const TOOLS = [...BROWSER_TOOLS, ...LOGIN_TOOLS];
 
-const CLICK_TOOLS = new Set<string>([
+const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
-  BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.PRESS_ENTER,
+  BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.FILL_JS, BROWSER_TOOL.PRESS_ENTER,
 ]);
 
 export async function login(page: Page, url: string, creds: Credentials, institutionName: string): Promise<void> {
@@ -134,7 +134,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
           return toolDone<void>(undefined, 'login complete');
         }
         default:
-          if (CLICK_TOOLS.has(name)) {
+          if (TRACKED_TOOLS.has(name)) {
             const desc = input.role
               ? `${name}(${input.role} "${input.name}")`
               : `${name}(${JSON.stringify(input)})`;

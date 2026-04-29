@@ -3,10 +3,12 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 
 export const BROWSER_TOOL = {
   SNAPSHOT:     'snapshot',
+  GET_INPUTS:   'get_inputs',
   CLICK:        'click',
   CLICK_TESTID: 'click_testid',
   CLICK_TEXT:   'click_text',
   CLICK_JS:     'click_js',
+  FILL_JS:      'fill_js',
   PRESS_ENTER:  'press_enter',
 } as const;
 
@@ -60,6 +62,23 @@ export const BROWSER_TOOLS: Tool[] = [
         selector: { type: 'string', description: 'CSS selector for the element' },
       },
       required: ['selector'],
+    },
+  },
+  {
+    name: BROWSER_TOOL.GET_INPUTS,
+    description: 'Return all input elements on the page with their HTML attributes (id, name, type, placeholder). Use this when the snapshot shows textboxes with no accessible name, to find a reliable CSS selector before calling fill_js.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: BROWSER_TOOL.FILL_JS,
+    description: 'Fill a form field by CSS selector. Use after get_inputs to fill fields that have no accessible name in the snapshot.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: { type: 'string', description: 'CSS selector for the input element, e.g. "#userId" or "input[name=password]"' },
+        value:    { type: 'string', description: 'Value to fill' },
+      },
+      required: ['selector', 'value'],
     },
   },
   {
@@ -119,6 +138,22 @@ export async function executeBrowserTool(
       await page.$eval(input.selector as string, (el: HTMLElement) => el.click());
       await afterClick(page);
       return `js-clicked "${input.selector}"`;
+
+    case BROWSER_TOOL.GET_INPUTS: {
+      const inputs = await page.$$eval('input, textarea, select', (els) =>
+        els.map((el) => {
+          const e = el as HTMLInputElement;
+          return { type: e.type || el.tagName.toLowerCase(), id: e.id, name: e.name, placeholder: e.placeholder };
+        }),
+      );
+      return inputs.map((f, i) =>
+        `[${i}] type=${f.type}${f.id ? ` id=${f.id}` : ''}${f.name ? ` name=${f.name}` : ''}${f.placeholder ? ` placeholder="${f.placeholder}"` : ''}`,
+      ).join('\n');
+    }
+
+    case BROWSER_TOOL.FILL_JS:
+      await page.locator(input.selector as string).fill(input.value as string, { timeout: 5000 });
+      return `filled "${input.selector}"`;
 
     case BROWSER_TOOL.PRESS_ENTER:
       await byRole(page, input).press('Enter', { timeout: 5000 });
