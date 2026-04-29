@@ -38,9 +38,9 @@ const REPORT_TOOL: Tool = {
 
 const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL];
 
-const CLICK_TOOLS = new Set<string>([
+const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
-  BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.PRESS_ENTER,
+  BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.FILL_JS, BROWSER_TOOL.PRESS_ENTER,
 ]);
 
 function buildSystemPrompt(notes: string): string {
@@ -67,35 +67,42 @@ export async function exploreAccounts(page: Page, institutionName: string): Prom
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
     events.push({ description, outcome, error });
 
-  return runAgent<Account[]>(
-    page,
-    TOOLS,
-    buildSystemPrompt(notes),
-    'The user is now logged in. Please find all accounts on the dashboard.',
-    async (name, input, pg) => {
-      if (name === REPORT_ACCOUNTS) {
-        track('report_accounts', 'success');
-        console.log('🤖 Summarizing session...');
-        const sessionNotes = await generateSessionNotes(events, 'exploring a financial institution dashboard to discover all accounts');
-        await saveMemoryNotes(institutionName, MEMORY_TASK, sessionNotes);
-        return toolDone<Account[]>((input as { accounts: Account[] }).accounts, 'accounts recorded');
-      }
-
-      if (CLICK_TOOLS.has(name)) {
-        const desc = input.role
-          ? `${name}(${input.role} "${input.name}")`
-          : `${name}(${JSON.stringify(input)})`;
-        try {
-          const result = await executeBrowserTool(name, input, pg);
-          track(desc, 'success');
-          return result;
-        } catch (err) {
-          track(desc, 'error', err instanceof Error ? err.message.split('\n')[0] : String(err));
-          throw err;
+  let succeeded = false;
+  try {
+    return await runAgent<Account[]>(
+      page,
+      TOOLS,
+      buildSystemPrompt(notes),
+      'The user is now logged in. Please find all accounts on the dashboard.',
+      async (name, input, pg) => {
+        if (name === REPORT_ACCOUNTS) {
+          track('report_accounts', 'success');
+          succeeded = true;
+          return toolDone<Account[]>((input as { accounts: Account[] }).accounts, 'accounts recorded');
         }
-      }
 
-      return executeBrowserTool(name, input, pg);
-    },
-  );
+        if (TRACKED_TOOLS.has(name)) {
+          const desc = input.role
+            ? `${name}(${input.role} "${input.name}")`
+            : `${name}(${JSON.stringify(input)})`;
+          try {
+            const result = await executeBrowserTool(name, input, pg);
+            track(desc, 'success');
+            return result;
+          } catch (err) {
+            track(desc, 'error', err instanceof Error ? err.message.split('\n')[0] : String(err));
+            throw err;
+          }
+        }
+
+        return executeBrowserTool(name, input, pg);
+      },
+    );
+  } finally {
+    if (events.length > 0) {
+      if (succeeded) console.log('🤖 Summarizing session...');
+      const sessionNotes = await generateSessionNotes(events, 'exploring a financial institution dashboard to discover all accounts');
+      await saveMemoryNotes(institutionName, MEMORY_TASK, sessionNotes);
+    }
+  }
 }
