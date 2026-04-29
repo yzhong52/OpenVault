@@ -10,6 +10,7 @@ export interface Account {
   balance?: string;
 }
 
+const MEMORY_TASK = 'accounts';
 const REPORT_ACCOUNTS = 'report_accounts';
 
 const REPORT_TOOL: Tool = {
@@ -54,13 +55,13 @@ Steps:
 3. If the accounts are behind a tab or link (e.g. "All accounts", "Holdings"), click it and snapshot again.
 4. Once you have a complete list, call report_accounts with all the accounts you found.
 
-Do not navigate away from the dashboard. Do not click login/logout links.${formatMemoryForPrompt(notes, 'explore')}`;
+Do not navigate away from the dashboard. Do not click login/logout links.${formatMemoryForPrompt(notes, 'accounts')}`;
 }
 
 export async function exploreAccounts(page: Page, institutionName: string): Promise<Account[]> {
   console.log('🤖 exploring accounts...');
 
-  const notes = await loadMemoryNotes(institutionName, 'explore');
+  const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -73,9 +74,10 @@ export async function exploreAccounts(page: Page, institutionName: string): Prom
     'The user is now logged in. Please find all accounts on the dashboard.',
     async (name, input, pg) => {
       if (name === REPORT_ACCOUNTS) {
+        track('report_accounts', 'success');
         console.log('🤖 Summarizing session...');
         const sessionNotes = await generateSessionNotes(events, 'exploring a financial institution dashboard to discover all accounts');
-        await saveMemoryNotes(institutionName, 'explore', sessionNotes);
+        await saveMemoryNotes(institutionName, MEMORY_TASK, sessionNotes);
         return toolDone<Account[]>((input as { accounts: Account[] }).accounts, 'accounts recorded');
       }
 

@@ -11,6 +11,18 @@ export interface ToolEvent {
 }
 
 type MemoryFile = Partial<Record<string, string>>;
+const BAD_SUMMARY_PATTERNS = [
+  /could you please share/i,
+  /you haven't provided/i,
+  /session (data|details).*(empty|weren't included)/i,
+];
+
+function normalizeNotes(notes: string | undefined): string {
+  const trimmed = notes?.trim() ?? '';
+  if (!trimmed) return '';
+  if (BAD_SUMMARY_PATTERNS.some(pattern => pattern.test(trimmed))) return '';
+  return trimmed;
+}
 
 function memoryPath(institutionName: string): string {
   const slug = institutionName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -27,15 +39,16 @@ async function readMemoryFile(institutionName: string): Promise<MemoryFile> {
 
 export async function loadMemoryNotes(institutionName: string, task: string): Promise<string> {
   const file = await readMemoryFile(institutionName);
-  return file[task] ?? '';
+  return normalizeNotes(file[task]);
 }
 
 export async function saveMemoryNotes(institutionName: string, task: string, notes: string): Promise<void> {
-  if (!notes) return;
+  const normalized = normalizeNotes(notes);
+  if (!normalized) return;
   const dir = path.join(DATA_DIR, 'memory');
   await fs.mkdir(dir, { recursive: true });
   const file = await readMemoryFile(institutionName);
-  file[task] = notes;
+  file[task] = normalized;
   await fs.writeFile(memoryPath(institutionName), JSON.stringify(file, null, 2) + '\n');
 }
 
@@ -45,6 +58,8 @@ export function formatMemoryForPrompt(notes: string, task: string): string {
 }
 
 export async function generateSessionNotes(events: ToolEvent[], taskContext: string): Promise<string> {
+  if (events.length === 0) return '';
+
   const transcript = events
     .map(e => `- ${e.description}: ${e.outcome === 'error' ? `FAILED (${e.error})` : 'ok'}`)
     .join('\n');
@@ -60,5 +75,5 @@ export async function generateSessionNotes(events: ToolEvent[], taskContext: str
   });
 
   const block = response.content.find(b => b.type === 'text');
-  return block ? block.text.trim() : '';
+  return normalizeNotes(block?.type === 'text' ? block.text : '');
 }
