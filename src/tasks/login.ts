@@ -88,6 +88,9 @@ const LOGIN_TOOLS: Tool[] = [
 
 const TOOLS = [...BROWSER_TOOLS, ...LOGIN_TOOLS];
 
+// Tools whose outcomes are recorded as ToolEvents and later summarized into
+// per-institution memory. Include any tool where success/failure is worth
+// remembering for future sessions (e.g. "use click_js here, not click").
 const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
   BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.FILL_JS, BROWSER_TOOL.PRESS_ENTER,
