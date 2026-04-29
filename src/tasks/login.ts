@@ -106,53 +106,60 @@ export async function login(page: Page, url: string, creds: Credentials, institu
 
   console.log('🤖 Starting login...');
 
-  await runAgent<void>(
-    page,
-    TOOLS,
-    buildSystemPrompt(creds, notes),
-    `The browser has navigated to the login page. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
-    async (name, input, pg) => {
-      switch (name) {
-        case LOGIN_TOOL.FILL:
-          await byRole(pg, input).fill(input.value as string);
-          track(`fill(${input.role} "${input.name}")`, 'success');
-          return `filled ${input.role} "${input.name}"`;
-        case LOGIN_TOOL.TYPE:
-          await byRole(pg, input).pressSequentially(input.value as string);
-          track(`type(${input.role} "${input.name}")`, 'success');
-          return `typed into ${input.role} "${input.name}"`;
-        case LOGIN_TOOL.REQUEST_MFA_CODE: {
-          console.log(`\n${input.instructions as string}`);
-          const code = await fetchMfaCode(loginStartedAt) ?? (await promptUser('Code: ')).trim();
-          track('request_mfa_code', 'success');
-          return code;
-        }
-        case LOGIN_TOOL.SUCCESS: {
-          console.log('🤖 Summarizing session...');
-          const sessionNotes = await generateSessionNotes(events, 'logging into a financial institution website');
-          await saveMemoryNotes(institutionName, 'login', sessionNotes);
-          return toolDone<void>(undefined, 'login complete');
-        }
-        default:
-          if (TRACKED_TOOLS.has(name)) {
-            const desc = input.role
-              ? `${name}(${input.role} "${input.name}")`
-              : `${name}(${JSON.stringify(input)})`;
-            try {
-              const result = await executeBrowserTool(name, input, pg);
-              track(desc, 'success');
-              return result;
-            } catch (err) {
-              track(desc, 'error', err instanceof Error ? err.message.split('\n')[0] : String(err));
-              throw err;
-            }
+  let loginSucceeded = false;
+  try {
+    await runAgent<void>(
+      page,
+      TOOLS,
+      buildSystemPrompt(creds, notes),
+      `The browser has navigated to the login page. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
+      async (name, input, pg) => {
+        switch (name) {
+          case LOGIN_TOOL.FILL:
+            await byRole(pg, input).fill(input.value as string);
+            track(`fill(${input.role} "${input.name}")`, 'success');
+            return `filled ${input.role} "${input.name}"`;
+          case LOGIN_TOOL.TYPE:
+            await byRole(pg, input).pressSequentially(input.value as string);
+            track(`type(${input.role} "${input.name}")`, 'success');
+            return `typed into ${input.role} "${input.name}"`;
+          case LOGIN_TOOL.REQUEST_MFA_CODE: {
+            console.log(`\n${input.instructions as string}`);
+            const code = await fetchMfaCode(loginStartedAt) ?? (await promptUser('Code: ')).trim();
+            track('request_mfa_code', 'success');
+            return code;
           }
-          return executeBrowserTool(name, input, pg);
-      }
-    },
-  );
+          case LOGIN_TOOL.SUCCESS: {
+            loginSucceeded = true;
+            return toolDone<void>(undefined, 'login complete');
+          }
+          default:
+            if (TRACKED_TOOLS.has(name)) {
+              const desc = input.role
+                ? `${name}(${input.role} "${input.name}")`
+                : `${name}(${JSON.stringify(input)})`;
+              try {
+                const result = await executeBrowserTool(name, input, pg);
+                track(desc, 'success');
+                return result;
+              } catch (err) {
+                track(desc, 'error', err instanceof Error ? err.message.split('\n')[0] : String(err));
+                throw err;
+              }
+            }
+            return executeBrowserTool(name, input, pg);
+        }
+      },
+    );
+  } finally {
+    if (events.length > 0) {
+      console.log('🤖 Summarizing session...');
+      const sessionNotes = await generateSessionNotes(events, 'logging into a financial institution website');
+      await saveMemoryNotes(institutionName, 'login', sessionNotes);
+    }
+  }
 
-  console.log('🤖 login complete');
+  if (loginSucceeded) console.log('🤖 login complete');
 }
 
 function promptUser(question: string): Promise<string> {
