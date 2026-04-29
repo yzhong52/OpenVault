@@ -19,9 +19,11 @@ const BAD_SUMMARY_PATTERNS = [
 const PREFERRED_TASK_ORDER = ['login', 'accounts'];
 
 function normalizeNotes(notes: string | undefined): string {
-  const trimmed = notes?.trim() ?? '';
+  let trimmed = notes?.trim() ?? '';
   if (!trimmed) return '';
   if (BAD_SUMMARY_PATTERNS.some(pattern => pattern.test(trimmed))) return '';
+  // Strip a leading ## heading if Claude included one — the task name is already the section heading.
+  trimmed = trimmed.replace(/^##[^\n]*\n+/, '').trim();
   return trimmed;
 }
 
@@ -113,7 +115,7 @@ export async function generateSessionNotes(events: ToolEvent[], taskContext: str
     max_tokens: 512,
     messages: [{
       role: 'user',
-      content: `You are reviewing a browser automation session for ${taskContext}. Here is the sequence of actions taken:\n\n${transcript}\n\nWrite 3-5 concise bullet points capturing:\n- Which selectors or tools worked well and should be tried first next time\n- Which failed and what succeeded instead\n- Any unusual flows or page structures encountered\n\nBe specific about element names and tools used. These notes will be injected into the next session's system prompt.`,
+      content: `You are reviewing a browser automation session for ${taskContext}. Here is the sequence of actions taken:\n\n${transcript}\n\nWrite 3-5 concise bullet points capturing:\n- Which selectors or tools worked well and should be tried first next time\n- Which failed and what succeeded instead\n- Any unusual flows or page structures encountered\n\nBe specific about element names and tools used. These notes will be injected into the next session's system prompt.\n\nDo not include a heading or title — start directly with the bullet points.`,
     }],
   });
 
