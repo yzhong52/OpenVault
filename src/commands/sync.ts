@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import { Command } from 'commander';
 import { chromium } from 'playwright';
 import { login } from '../tasks/login';
-import { exploreAccounts } from '../tasks/explore';
+import { exploreAccounts } from '../tasks/accounts';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
 import { saveSync } from '../db/storage';

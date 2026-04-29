@@ -19,16 +19,13 @@ Add `latest_balance_cents` and `latest_synced_at` columns to `accounts`, updated
 **5. Transactions task**
 Implement `src/tasks/transactions.ts` so sync captures recent activity in addition to balances.
 
-**6. Rename `explore.ts`**
-Rename `src/tasks/explore.ts` to `src/tasks/accounts.ts` or similar so the task name matches what it actually does.
-
 ## Institution support
 
-**7. Tangerine**
+**6. Tangerine**
 Investigate login failure via saved snapshots in `logs/`. Likely a non-standard login widget or device verification step.
 
-**8. Questrade**
+**7. Questrade**
 Investigate login failure. May involve bot detection or a multi-step auth flow.
 
-**9. Schwab (Charles Schwab)**
+**8. Schwab (Charles Schwab)**
 Investigate login failure. Known for aggressive bot detection — may need `click_js` workarounds or a custom browser tool.

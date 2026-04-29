@@ -1,5 +1,5 @@
 import { eq, desc } from 'drizzle-orm';
-import type { Account } from '../tasks/explore';
+import type { Account } from '../tasks/accounts';
 import { type Db } from '.';
 import { institutions, accounts as accountsTable, syncs, balances } from './schema';
 
