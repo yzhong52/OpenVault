@@ -63,7 +63,6 @@ Each sync runs a three-step agent pipeline per institution:
 
 1. **Login** (`src/tasks/login.ts`) — navigates to the institution's login page, fills credentials, handles MFA, and waits for the dashboard.
 2. **Account discovery** (`src/tasks/accounts.ts`) — scans the dashboard to discover all accounts, types, and balances.
-3. **Transactions** — downloads the latest activity and transactions for each account. <!-- TODO: implement src/tasks/transactions.ts -->
 
 After each step, the agent reflects on what worked and what didn't, and writes a short set of notes that are injected into the next session. This means the agent gets faster and more reliable over time for each institution it's seen before.
 
@@ -115,5 +114,5 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 
 - Node.js 18+
 - macOS (Keychain is used for credential storage)
-- Google Chrome installed
-- Anthropic API key (saved via `npm run cli -- config anthropic`)
+- Google Chrome
+- Anthropic API key
