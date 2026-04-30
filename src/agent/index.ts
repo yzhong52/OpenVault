@@ -4,6 +4,7 @@ import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import { BROWSER_TOOL } from './browser';
 import { LOGS_DIR } from '../db';
+import { keychainLoadApiKey } from '../keychain';
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
@@ -14,7 +15,15 @@ export function debug(...args: unknown[]): void {
   if (DEBUG) console.log(...args);
 }
 
-const client = new Anthropic();
+let _client: Anthropic | null = null;
+function getClient(): Anthropic {
+  if (!_client) {
+    const apiKey = keychainLoadApiKey() ?? process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('Anthropic API key not found. Run: npm run cli -- config anthropic');
+    _client = new Anthropic({ apiKey });
+  }
+  return _client;
+}
 
 export interface ToolDone<T> {
   done: true;
@@ -69,7 +78,7 @@ export async function runAgent<T>(
     debug(JSON.stringify(messages[messages.length - 1], null, 2));
     debug('──────────────────────────────────────────────────\n');
 
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: systemPrompt,

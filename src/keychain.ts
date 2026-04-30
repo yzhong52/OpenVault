@@ -30,3 +30,26 @@ export function keychainLoad(name: string, email: string): string | null {
   if (result.status !== 0) return null;
   return result.stdout.toString().trim();
 }
+
+const ANTHROPIC_ACCOUNT = 'anthropic-api-key';
+
+export function keychainSaveApiKey(key: string): void {
+  const result = spawnSync('security', [
+    'add-generic-password', '-U',
+    '-s', SERVICE,
+    '-a', ANTHROPIC_ACCOUNT,
+    '-w', key,
+  ]);
+  if (result.status !== 0) throw new Error(result.stderr.toString().trim());
+}
+
+export function keychainLoadApiKey(): string | null {
+  const result = spawnSync('security', [
+    'find-generic-password',
+    '-s', SERVICE,
+    '-a', ANTHROPIC_ACCOUNT,
+    '-w',
+  ]);
+  if (result.status !== 0) return null;
+  return result.stdout.toString().trim();
+}

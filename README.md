@@ -14,10 +14,16 @@ npm install
 npx playwright install chromium
 ```
 
-Set your Anthropic API key:
+Save your Anthropic API key to Keychain:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+npm run cli -- config anthropic
+```
+
+Optionally, configure Gmail for automatic MFA code retrieval:
+
+```bash
+npm run cli -- config gmail
 ```
 
 ## Quick start
@@ -99,7 +105,7 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 
 ## Troubleshooting
 
-- If you see an Anthropic authentication error, make sure `ANTHROPIC_API_KEY` is set in the shell where you run the CLI.
+- If you see an Anthropic authentication error, run `npm run cli -- config anthropic` to save your API key to Keychain.
 - If browser launch fails, make sure Google Chrome is installed and `npx playwright install chromium` has been run.
 - If MFA auto-fill does not work, run `npm run cli -- config gmail` and verify the Gmail App Password.
 - If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `~/.openvault/logs/`. Sessions are grouped into subfolders named by host and timestamp (e.g. `app_wealthsimple_com_2025-05-28_143022/`). The 10 most recent sessions per host are kept automatically.
@@ -110,4 +116,4 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 - Node.js 18+
 - macOS (Keychain is used for credential storage)
 - Google Chrome installed
-- `ANTHROPIC_API_KEY` environment variable
+- Anthropic API key (saved via `npm run cli -- config anthropic`)

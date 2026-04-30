@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { keychainSave, keychainLoad } from '../keychain';
+import { keychainSave, keychainLoad, keychainSaveApiKey, keychainLoadApiKey } from '../keychain';
 import { loadConfig, saveConfig } from '../config';
 import { prompt, promptPassword } from './utils';
 
@@ -50,6 +50,26 @@ More info: faq/how_to_config_gmail_for_mfa.md
       await saveConfig({ gmailAddress: newEmail });
       keychainSave('gmail', newEmail, newPassword);
       console.log(`Saved Gmail credentials for ${newEmail}`);
+    });
+
+  cmd
+    .command('anthropic')
+    .description('Save Anthropic API key to Keychain')
+    .action(async () => {
+      const existingKey = keychainLoadApiKey() ?? '';
+      const maskedKey = existingKey.length >= 2
+        ? existingKey[0] + '*'.repeat(existingKey.length - 2) + existingKey.at(-1)
+        : existingKey ? '*'.repeat(existingKey.length) : '';
+      const keyInput = await promptPassword(
+        maskedKey ? `Anthropic API key [${maskedKey}]: ` : 'Anthropic API key (sk-ant-...): ',
+      );
+      const newKey = keyInput.trim() || existingKey;
+      if (!newKey) {
+        console.log('Aborted — API key is required.');
+        return;
+      }
+      keychainSaveApiKey(newKey);
+      console.log('Saved Anthropic API key to Keychain.');
     });
 
   return cmd;

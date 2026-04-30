@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DATA_DIR } from './db';
 import { MODEL } from './agent';
+import { keychainLoadApiKey } from './keychain';
 
 export interface ToolEvent {
   description: string;
@@ -109,7 +110,7 @@ export async function generateSessionNotes(events: ToolEvent[], taskContext: str
     .map(e => `- ${e.description}: ${e.outcome === 'error' ? `FAILED (${e.error})` : 'ok'}`)
     .join('\n');
 
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: keychainLoadApiKey() ?? process.env.ANTHROPIC_API_KEY });
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 512,
