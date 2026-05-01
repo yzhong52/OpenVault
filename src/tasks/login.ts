@@ -3,6 +3,7 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import * as readline from 'readline';
 import { runAgent, toolDone, SUCCESS_TOOL } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
+import { loadPageCache } from '../agent/cache';
 import { fetchMfaCode } from '../gmail';
 import { loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt, generateSessionNotes, type ToolEvent } from '../memory';
 
@@ -99,7 +100,10 @@ const TRACKED_TOOLS = new Set<string>([
 
 export async function login(page: Page, url: string, creds: Credentials, institutionName: string): Promise<void> {
   const loginStartedAt = new Date();
-  const notes = await loadMemoryNotes(institutionName, 'login');
+  const [notes, pageCache] = await Promise.all([
+    loadMemoryNotes(institutionName, 'login'),
+    loadPageCache(institutionName, 'login'),
+  ]);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -154,6 +158,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
             return executeBrowserTool(name, input, pg);
         }
       },
+      { pageCache, initialSnapshot },
     );
   } finally {
     if (events.length > 0) {

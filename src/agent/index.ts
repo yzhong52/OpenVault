@@ -1,10 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
+import type { ContentBlock, MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import { BROWSER_TOOL } from './browser';
+import { PageCache } from './cache';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
+
+export { PageCache };
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
@@ -59,13 +62,25 @@ async function pruneSessionsForHost(hostSlug: string): Promise<void> {
   }
 }
 
+export interface RunAgentOptions {
+  // A PageCache instance for cross-run snapshot caching. When provided, the agent
+  // will replay cached actions for known pages instead of calling the API.
+  pageCache?: PageCache;
+  // The initial page snapshot (already sent in initialMessage). Providing this
+  // enables cache lookups from the very first turn rather than waiting for the
+  // first explicit snapshot tool call.
+  initialSnapshot?: string;
+}
+
 export async function runAgent<T>(
   page: Page,
   tools: Tool[],
   systemPrompt: string,
   initialMessage: string,
   onTool: (name: string, input: Record<string, unknown>, page: Page) => Promise<string | ToolDone<T>>,
+  options?: RunAgentOptions,
 ): Promise<T> {
+  const { pageCache, initialSnapshot } = options ?? {};
   const messages: MessageParam[] = [{ role: 'user', content: initialMessage }];
   const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
   const now = new Date();
@@ -75,28 +90,59 @@ export async function runAgent<T>(
   let snapCount = 0;
   await fs.mkdir(sessionDir, { recursive: true });
 
+  // Snapshot pending for the next cache check. Seeded from initialSnapshot so
+  // turn-1 can hit the cache without waiting for an explicit snapshot tool call.
+  let pendingSnapshot: string | null = initialSnapshot ?? null;
+
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    debug('\n── prompt to claude ──────────────────────────────');
-    debug(JSON.stringify(messages[messages.length - 1], null, 2));
-    debug('──────────────────────────────────────────────────\n');
+    // Save snapshot reference before resetting, so replay-failure tracking
+    // can reference the same value that was used for the cache lookup.
+    const snapshotForCache = pendingSnapshot;
+    pendingSnapshot = null;
 
-    const response = await getClient().messages.create({
-      model: MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      tools,
-      tool_choice: { type: 'any' },
-      messages,
-    });
+    // --- Cache check / API call ---
+    const cachedAction = pageCache && snapshotForCache !== null ? pageCache.check(snapshotForCache) : null;
+    let replayId: string | null = null;
+    let assistantContent: ContentBlock[];
 
-    messages.push({ role: 'assistant', content: response.content });
+    if (cachedAction) {
+      replayId = `cache_${turn}_${Date.now()}`;
+      assistantContent = [{ type: 'tool_use', id: replayId, name: cachedAction.name, input: cachedAction.input }];
+      console.log(`⚡ Replay: ${cachedAction.name}`);
+    } else {
+      debug('\n── prompt to claude ──────────────────────────────');
+      debug(JSON.stringify(messages[messages.length - 1], null, 2));
+      debug('──────────────────────────────────────────────────\n');
 
-    const toolUses = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
+      const response = await getClient().messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools,
+        tool_choice: { type: 'any' },
+        messages,
+      });
+
+      assistantContent = response.content;
+
+      // Record the first tool Claude chose, keyed by the snapshot that prompted it.
+      if (pageCache && snapshotForCache !== null) {
+        const toolUse = assistantContent.find((b): b is ToolUseBlock => b.type === 'tool_use');
+        if (toolUse) {
+          pageCache.record(snapshotForCache, toolUse.name, toolUse.input as Record<string, unknown>);
+        }
+      }
+    }
+
+    messages.push({ role: 'assistant', content: assistantContent });
+
+    const toolUses = assistantContent.filter((b): b is ToolUseBlock => b.type === 'tool_use');
     // tool_choice: 'any' guarantees at least one tool call per response.
     if (toolUses.length === 0) throw new Error('unexpected: Claude returned no tool calls');
 
     const toolResults: { type: 'tool_result'; tool_use_id: string; content: string }[] = [];
     let result: { value: T } | undefined;
+    let replayFailed = false;
 
     for (const toolUse of toolUses) {
       // Stub any tool_use blocks that follow the terminal tool — the API requires
@@ -126,6 +172,7 @@ export async function runAgent<T>(
 
         const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
         if (toolUse.name === BROWSER_TOOL.SNAPSHOT) {
+          pendingSnapshot = output; // available for next turn's cache check
           const file = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
           await fs.writeFile(file, output);
           await pruneSessionsForHost(hostSlug);
@@ -137,9 +184,10 @@ export async function runAgent<T>(
         } else {
           console.log(`🔧 ${preview}`);
         }
-        
+
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
+        if (replayId && toolUse.id === replayId) replayFailed = true;
         if (VERBOSE) {
           const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
           // Playwright errors contain ANSI colour codes; the reset '\x1b[0m' prevents terminal colour bleed.
@@ -149,14 +197,24 @@ export async function runAgent<T>(
           console.log(`❌ ${errorType}`);
         }
       }
-      
+
       if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
     }
 
+    // Invalidate this snapshot's cache entry for the remainder of the run so
+    // the next iteration calls Claude instead of replaying the same bad action.
+    if (replayFailed && snapshotForCache !== null && pageCache) {
+      pageCache.failSnapshot(snapshotForCache);
+      console.log('⚡ Replay failed — falling back to Claude');
+    }
+
     messages.push({ role: 'user', content: toolResults });
 
-    if (result) return result.value;
+    if (result) {
+      await pageCache?.flush();
+      return result.value;
+    }
   }
 
   throw new Error(`agent did not complete within ${MAX_TURNS} turns`);

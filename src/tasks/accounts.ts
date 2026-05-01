@@ -2,6 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
+import { loadPageCache } from '../agent/cache';
 import { loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt, generateSessionNotes, type ToolEvent } from '../memory';
 
 export interface Account {
@@ -65,7 +66,10 @@ Do not navigate away from the dashboard. Do not click login/logout links.${forma
 export async function exploreAccounts(page: Page, institutionName: string): Promise<Account[]> {
   console.log('🤖 Exploring accounts...');
 
-  const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
+  const [notes, pageCache] = await Promise.all([
+    loadMemoryNotes(institutionName, MEMORY_TASK),
+    loadPageCache(institutionName, MEMORY_TASK),
+  ]);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -99,6 +103,7 @@ export async function exploreAccounts(page: Page, institutionName: string): Prom
 
         return executeBrowserTool(name, input, pg);
       },
+      { pageCache },
     );
   } finally {
     if (events.length > 0) {
