@@ -136,9 +136,14 @@ export async function runAgent<T>(
         
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
-        const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
-        // Playwright errors contain ANSI colour codes; the reset prevents terminal colour bleed.
-        console.log(`❌ ${preview}\x1b[0m`);
+        if (VERBOSE) {
+          // Playwright errors contain ANSI colour codes; the reset prevents terminal colour bleed.
+          const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
+          console.log(`❌ ${preview}\x1b[0m`);
+        } else {
+          const errorType = err instanceof Error ? err.constructor.name : '';
+          console.log(`❌ error: ${errorType}`);
+        }
       }
       
       if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));

@@ -48,7 +48,7 @@ export function makeSyncCommand(): Command {
             continue;
           }
 
-          console.log(`\nSyncing ${inst.name}...`);
+          console.log(`\n🤖 Syncing ${inst.name}...`);
           await login(page, inst.url, { username: inst.username, password }, inst.name);
 
           const accounts = await exploreAccounts(page, inst.name);
