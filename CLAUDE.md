@@ -114,3 +114,7 @@ Accessibility snapshots are saved to `logs/<hostname>_<YYYY-MM-DD>_<HHMMSS>/<n>.
 ## Adding a new task
 
 Add a new file under `src/tasks/` (e.g. `transactions.ts`). Import `runAgent` from `../agent` and browser tools from `../agent/browser`. Define task-specific tools, a system prompt, and export a single async function.
+
+## Conventions
+
+- **No hardcoded tool name strings.** Tool names that are referenced in multiple places (e.g. `SUCCESS_TOOL` in `src/agent/index.ts`) must be defined as a named constant and imported — never duplicated as string literals.

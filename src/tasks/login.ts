@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import * as readline from 'readline';
-import { runAgent, toolDone } from '../agent';
+import { runAgent, toolDone, SUCCESS_TOOL } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
 import { fetchMfaCode } from '../gmail';
 import { loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt, generateSessionNotes, type ToolEvent } from '../memory';
@@ -38,7 +38,7 @@ const LOGIN_TOOL = {
   FILL:             'fill',
   TYPE:             'type',
   REQUEST_MFA_CODE: 'request_mfa_code',
-  SUCCESS:          'success',
+  SUCCESS:          SUCCESS_TOOL,
 } as const;
 
 const LOGIN_TOOLS: Tool[] = [
@@ -163,7 +163,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
     }
   }
 
-  if (loginSucceeded) console.log('🤖 login complete');
+  if (loginSucceeded) console.log('🤖 Login complete');
 }
 
 function promptUser(question: string): Promise<string> {

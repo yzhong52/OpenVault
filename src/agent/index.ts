@@ -9,6 +9,8 @@ import { keychainLoadApiKey } from '../keychain';
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
 export const DEBUG = process.env.DEBUG === '1';
+export const VERBOSE = process.env.VERBOSE === '1' || DEBUG;
+export const SUCCESS_TOOL = 'success';
 const MAX_SESSIONS_PER_HOST = 10;
 
 export function debug(...args: unknown[]): void {
@@ -104,7 +106,13 @@ export async function runAgent<T>(
         continue;
       }
 
-      console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🔧 ${toolUse.name}`, toolUse.input);
+      if (toolUse.name === SUCCESS_TOOL) {
+        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🎉 Mission accomplished`);
+      } else if (VERBOSE) {
+        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🔧 ${toolUse.name}`, toolUse.input);
+      } else {
+        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🔧 ${toolUse.name}`);
+      }
 
       let output = '';
       try {
@@ -121,7 +129,7 @@ export async function runAgent<T>(
           const file = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
           await fs.writeFile(file, output);
           await pruneSessionsForHost(hostSlug);
-          console.log(`✅ snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
+          if (VERBOSE) console.log(`✅ snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
         } else {
           console.log(`✅ ${preview}`);
         }

@@ -63,7 +63,7 @@ Do not navigate away from the dashboard. Do not click login/logout links.${forma
 }
 
 export async function exploreAccounts(page: Page, institutionName: string): Promise<Account[]> {
-  console.log('🤖 exploring accounts...');
+  console.log('🤖 Exploring accounts...');
 
   const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
   const events: ToolEvent[] = [];

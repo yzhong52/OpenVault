@@ -12,7 +12,9 @@ export function makeSyncCommand(): Command {
   return new Command('sync')
     .description('Login to all saved institutions and sync accounts')
     .option('-i, --institution <name>', 'Only sync the institution with this name (case-insensitive)')
-    .action(async (opts: { institution?: string }) => {
+    .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
+    .action(async (opts: { institution?: string; verbose?: boolean }) => {
+      if (opts.verbose) process.env.VERBOSE = '1';
       let institutions = await readInstitutions();
       if (opts.institution) {
         const filter = opts.institution.toLowerCase();
