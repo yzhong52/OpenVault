@@ -163,7 +163,7 @@ export async function login(page: Page, url: string, creds: Credentials, institu
     }
   }
 
-  if (loginSucceeded) console.log('🤖 Login complete');
+  if (loginSucceeded) console.log('🤖 Login complete 🎉');
 }
 
 function promptUser(question: string): Promise<string> {

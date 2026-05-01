@@ -107,11 +107,11 @@ export async function runAgent<T>(
       }
 
       if (toolUse.name === SUCCESS_TOOL) {
-        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🎉 Mission accomplished`);
+        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 Mission accomplished`);
       } else if (VERBOSE) {
-        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🔧 ${toolUse.name}`, toolUse.input);
+        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`, toolUse.input);
       } else {
-        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 🔧 ${toolUse.name}`);
+        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`);
       }
 
       let output = '';
@@ -129,20 +129,24 @@ export async function runAgent<T>(
           const file = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
           await fs.writeFile(file, output);
           await pruneSessionsForHost(hostSlug);
-          if (VERBOSE) console.log(`✅ snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
+          if (VERBOSE) console.log(`🔧 snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
+          else console.log(`🔧 Snapshot taken`);
+        } else if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
+          if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
+          else console.log(`🔧 Inputs retrieved`);
         } else {
-          console.log(`✅ ${preview}`);
+          console.log(`🔧 ${preview}`);
         }
         
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
         if (VERBOSE) {
-          // Playwright errors contain ANSI colour codes; the reset prevents terminal colour bleed.
           const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
+          // Playwright errors contain ANSI colour codes; the reset '\x1b[0m' prevents terminal colour bleed.
           console.log(`❌ ${preview}\x1b[0m`);
         } else {
-          const errorType = err instanceof Error ? err.constructor.name : '';
-          console.log(`❌ error: ${errorType}`);
+          const errorType = err instanceof Error ? err.constructor.name : String(err);
+          console.log(`❌ ${errorType}`);
         }
       }
       
