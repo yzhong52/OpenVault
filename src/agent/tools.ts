@@ -14,11 +14,14 @@ export const BROWSER_TOOL = {
   PRESS_ENTER:     'press_enter',
 } as const;
 
+/** Shared terminal tool — all tasks call this to signal completion. */
+export const SUCCESS_TOOL = 'success';
+
 export const LOGIN_TOOL = {
   FILL:             'fill',
   TYPE:             'type',
   REQUEST_MFA_CODE: 'request_mfa_code',
-  SUCCESS:          'success',
+  SUCCESS:          SUCCESS_TOOL,
 } as const;
 
 export const ACCOUNT_TOOL = {
@@ -28,6 +31,3 @@ export const ACCOUNT_TOOL = {
 export const TRANSACTION_TOOL = {
   REPORT_TRANSACTIONS: 'report_transactions',
 } as const;
-
-/** Shared terminal tool name — tasks call this to signal completion. */
-export const SUCCESS_TOOL = LOGIN_TOOL.SUCCESS;

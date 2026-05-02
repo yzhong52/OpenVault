@@ -39,7 +39,6 @@ Always call snapshot after submitting a form or clicking a button so you can
 see the updated page state before deciding what to do next.${formatMemoryForPrompt(notes, 'login')}`;
 }
 
-
 const LOGIN_TOOLS: Tool[] = [
   {
     name: LOGIN_TOOL.FILL,

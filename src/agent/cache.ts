@@ -73,8 +73,16 @@ function fp(snapshot: string): Fingerprint {
   return crypto.createHash('sha256').update(normalizeSnapshot(snapshot)).digest('hex').slice(0, 16);
 }
 
-/** Returns false for tools whose inputs contain live data that must not be persisted
- *  (e.g. password fields, report_accounts with current balances). */
+/** Stable JSON stringify — sorts keys so { a, b } and { b, a } compare equal. */
+function stableStringify(obj: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b))),
+  );
+}
+
+/** Returns false for tools whose inputs contain live data that must not be persisted.
+ *  Note: username fills ARE cached (only password-like field names are excluded).
+ *  Usernames are stored in plaintext in the cache file, which lives in ~/.openvault/. */
 function isCacheable(toolName: string, input: Record<string, unknown>): boolean {
   if (NON_CACHEABLE_TOOLS.has(toolName)) return false;
   const isCredentialField = (toolName === LOGIN_TOOL.FILL || toolName === LOGIN_TOOL.TYPE)
@@ -83,6 +91,7 @@ function isCacheable(toolName: string, input: Record<string, unknown>): boolean 
   return true;
 }
 
+// Called with a fresh timestamp each time — must be a function, not a constant.
 function emptyData(): CacheData {
   return { version: CACHE_VERSION, steps: {}, updatedAt: new Date().toISOString() };
 }
@@ -123,7 +132,7 @@ export class PageCache {
     const h = fp(snapshot);
     const existing = this.data.steps[h];
     const inputUnchanged = existing?.name === name
-      && JSON.stringify(existing.input) === JSON.stringify(input);
+      && stableStringify(existing.input) === stableStringify(input);
     if (inputUnchanged) return; // unchanged
     this.data.steps[h] = { name, input };
     this.data.updatedAt = new Date().toISOString();
@@ -135,6 +144,9 @@ export class PageCache {
     this.failedFps.add(fp(snapshot));
   }
 
+  /** Write dirty entries to disk. Only called on a fully successful run — if the
+   *  agent throws, any new entries accumulated during that run are intentionally
+   *  discarded to avoid caching a partial or failed sequence. */
   async flush(): Promise<void> {
     if (!this.dirty) return;
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
@@ -145,13 +157,13 @@ export class PageCache {
   }
 }
 
-export async function loadPageCache(institution: string, task: string): Promise<PageCache> {
-  const slug = institution.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const filePath = path.join(DATA_DIR, 'page-cache', `${slug}-${task}.json`);
-
+async function readCacheFile(filePath: string): Promise<PageCache> {
   try {
     const raw = JSON.parse(await fs.readFile(filePath, 'utf-8')) as CacheData;
-    if (raw.version !== CACHE_VERSION || typeof raw.steps !== 'object') {
+    const invalid = raw.version !== CACHE_VERSION
+      || typeof raw.steps !== 'object'
+      || Array.isArray(raw.steps);
+    if (invalid) {
       // Stale or corrupt — start fresh.
       return new PageCache(emptyData(), filePath);
     }
@@ -161,4 +173,20 @@ export async function loadPageCache(institution: string, task: string): Promise<
   } catch {
     return new PageCache(emptyData(), filePath);
   }
+}
+
+export async function loadPageCache(institution: string, task: string): Promise<PageCache> {
+  const slug = institution.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  const filePath = path.join(DATA_DIR, 'page-cache', `${slug}-${task}.json`);
+  return readCacheFile(filePath);
+}
+
+/** Create an empty cache backed by the given file path. Intended for tests. */
+export function createPageCache(filePath: string): PageCache {
+  return new PageCache(emptyData(), filePath);
+}
+
+/** Load a cache from an explicit file path. Intended for tests. */
+export async function loadPageCacheFromFile(filePath: string): Promise<PageCache> {
+  return readCacheFile(filePath);
 }

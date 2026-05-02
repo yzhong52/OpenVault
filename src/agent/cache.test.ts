@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { normalizeSnapshot } from './cache';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import { normalizeSnapshot, createPageCache, loadPageCacheFromFile } from './cache';
 
 describe('normalizeSnapshot', () => {
   it('strips dollar amounts', () => {
@@ -58,5 +61,107 @@ describe('normalizeSnapshot', () => {
     const loginPage = '- textbox "Email"\n- textbox "Password"\n- button "Log in"';
     const dashPage  = '- heading "Portfolio"\n- text "$50,000.00"\n- link "View accounts"';
     expect(normalizeSnapshot(loginPage)).not.toBe(normalizeSnapshot(dashPage));
+  });
+});
+
+describe('PageCache', () => {
+  let tmpDir: string;
+  let cacheFile: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openvault-cache-test-'));
+    cacheFile = path.join(tmpDir, 'test.json');
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns null on cache miss', () => {
+    const cache = createPageCache(cacheFile);
+    expect(cache.check('- button "Log in"')).toBeNull();
+  });
+
+  it('returns a recorded action on cache hit', async () => {
+    const cache = createPageCache(cacheFile);
+    const snap = '- button "Log in"';
+    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    const hit = cache.check(snap);
+    expect(hit).not.toBeNull();
+    expect(hit!.name).toBe('click');
+    expect(hit!.input).toEqual({ role: 'button', name: 'Log in' });
+  });
+
+  it('treats structurally equivalent snapshots as the same key', () => {
+    const cache = createPageCache(cacheFile);
+    const snap1 = '- text "Total equity"\n- text "$258,486.25"';
+    const snap2 = '- text "Total equity"\n- text "$301,200.00"';
+    cache.record(snap1, 'click', { role: 'link', name: 'View accounts' });
+    expect(cache.check(snap2)).not.toBeNull();
+  });
+
+  it('returns null after failSnapshot', () => {
+    const cache = createPageCache(cacheFile);
+    const snap = '- button "Submit"';
+    cache.record(snap, 'click', { role: 'button', name: 'Submit' });
+    cache.failSnapshot(snap);
+    expect(cache.check(snap)).toBeNull();
+  });
+
+  it('does not mark dirty when recording an unchanged entry', async () => {
+    const cache = createPageCache(cacheFile);
+    const snap = '- button "Log in"';
+    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    await cache.flush();
+    const mtime1 = (await fs.stat(cacheFile)).mtimeMs;
+
+    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    await cache.flush();
+    const mtime2 = (await fs.stat(cacheFile)).mtimeMs;
+
+    expect(mtime2).toBe(mtime1);
+  });
+
+  it('treats key-order-different inputs as equal', () => {
+    const cache = createPageCache(cacheFile);
+    const snap = '- button "Log in"';
+    cache.record(snap, 'click', { name: 'Log in', role: 'button' });
+    const hit = cache.check(snap);
+    // Record again with reversed key order — should not mark dirty (no change)
+    const snapBefore = JSON.stringify((cache as unknown as { data: { steps: unknown } }).data.steps);
+    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    const snapAfter = JSON.stringify((cache as unknown as { data: { steps: unknown } }).data.steps);
+    expect(snapAfter).toBe(snapBefore);
+    expect(hit).not.toBeNull();
+  });
+
+  it('persists entries to disk and loads them back', async () => {
+    const cache = createPageCache(cacheFile);
+    const snap = '- button "Log in"';
+    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    await cache.flush();
+
+    const loaded = await loadPageCacheFromFile(cacheFile);
+    const hit = loaded.check(snap);
+    expect(hit).not.toBeNull();
+    expect(hit!.name).toBe('click');
+  });
+
+  it('starts fresh when the cache file has a wrong version', async () => {
+    await fs.writeFile(cacheFile, JSON.stringify({ version: 999, steps: {}, updatedAt: '' }));
+    const cache = await loadPageCacheFromFile(cacheFile);
+    expect(cache.check('- button "Log in"')).toBeNull();
+  });
+
+  it('starts fresh when the cache file is corrupt JSON', async () => {
+    await fs.writeFile(cacheFile, 'not valid json');
+    const cache = await loadPageCacheFromFile(cacheFile);
+    expect(cache.check('- button "Log in"')).toBeNull();
+  });
+
+  it('starts fresh when steps is an array instead of an object', async () => {
+    await fs.writeFile(cacheFile, JSON.stringify({ version: 1, steps: [], updatedAt: '' }));
+    const cache = await loadPageCacheFromFile(cacheFile);
+    expect(cache.check('- button "Log in"')).toBeNull();
   });
 });
