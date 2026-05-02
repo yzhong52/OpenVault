@@ -9,8 +9,7 @@ import { keychainLoadApiKey } from '../keychain';
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
-export const DEBUG = process.env.DEBUG === '1';
-export const VERBOSE = process.env.VERBOSE === '1' || DEBUG;
+export const VERBOSE = process.env.VERBOSE === '1';
 const MAX_SESSIONS_PER_HOST = 10;
 
 
@@ -177,7 +176,6 @@ export async function runAgent<T>(
           }
           output += `\n\nCurrent page state:\n${snap}`;
 
-          if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
         }
       } else {

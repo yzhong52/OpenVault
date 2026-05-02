@@ -32,7 +32,6 @@ npm run cli -- sync                     # Sync all institutions
 npm run cli -- sync --institution TD    # Sync a single institution by name
 npm run cli -- accounts list            # List all stored accounts and latest balances
 npm run cli -- config gmail             # Configure Gmail for automatic MFA
-DEBUG=1 npm run cli -- sync             # 1s pause per tool call (for watching the browser)
 ```
 
 ## Architecture of login.ts
