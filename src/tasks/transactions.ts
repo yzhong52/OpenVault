@@ -2,6 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
+import { TRANSACTION_TOOL } from '../agent/tools';
 import { loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt, generateSessionNotes, type ToolEvent } from '../memory';
 
 export interface Transaction {
@@ -12,7 +13,7 @@ export interface Transaction {
 }
 
 const MEMORY_TASK = 'transactions';
-const REPORT_TRANSACTIONS = 'report_transactions';
+const REPORT_TRANSACTIONS = TRANSACTION_TOOL.REPORT_TRANSACTIONS;
 
 const REPORT_TOOL: Tool = {
   name: REPORT_TRANSACTIONS,

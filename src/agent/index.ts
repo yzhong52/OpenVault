@@ -2,7 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
-import { BROWSER_TOOL } from './browser';
+import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
+export { SUCCESS_TOOL } from './tools';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
 
@@ -10,7 +11,6 @@ export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
 export const DEBUG = process.env.DEBUG === '1';
 export const VERBOSE = process.env.VERBOSE === '1' || DEBUG;
-export const SUCCESS_TOOL = 'success';
 const MAX_SESSIONS_PER_HOST = 10;
 
 export function debug(...args: unknown[]): void {

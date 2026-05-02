@@ -2,6 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
+import { ACCOUNT_TOOL } from '../agent/tools';
 import { loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt, generateSessionNotes, type ToolEvent } from '../memory';
 
 export interface Account {
@@ -11,7 +12,7 @@ export interface Account {
 }
 
 const MEMORY_TASK = 'accounts';
-const REPORT_ACCOUNTS = 'report_accounts';
+const REPORT_ACCOUNTS = ACCOUNT_TOOL.REPORT_ACCOUNTS;
 
 const REPORT_TOOL: Tool = {
   name: REPORT_ACCOUNTS,
