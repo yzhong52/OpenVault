@@ -61,6 +61,9 @@ async function pruneSessionsForHost(hostSlug: string): Promise<void> {
   }
 }
 
+// T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
+// onTool returns either a plain string (tool result fed back to Claude) or
+// toolDone(value) to signal completion and carry the final value out of the loop.
 export async function runAgent<T>(
   page: Page,
   tools: Tool[],
@@ -105,74 +108,75 @@ export async function runAgent<T>(
     let result: { value: T } | undefined;
 
     for (const toolUse of toolUses) {
-      // Stub any tool_use blocks that follow the terminal tool — the API requires
-      // one tool_result per tool_use in the conversation history.
-      if (result) {
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: 'skipped' });
-        continue;
-      }
-
-      if (toolUse.name === SUCCESS_TOOL) {
-        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 Mission accomplished`);
-      } else if (VERBOSE) {
-        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`, toolUse.input);
-      } else {
-        console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`);
-      }
-
-      let output = '';
-      try {
-        const r = await onTool(toolUse.name, toolUse.input as Record<string, unknown>, page);
-        if (isDone(r)) {
-          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: r.content });
-          result = { value: r.value };
-          continue;
-        }
-        output = r;
-        const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
-        if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
-          if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
-          else console.log(`🔧 Inputs retrieved`);
+      if (!result) {
+        if (toolUse.name === SUCCESS_TOOL) {
+          console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 Mission accomplished`);
+        } else if (VERBOSE) {
+          console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`, toolUse.input);
         } else {
-          console.log(`🔧 ${preview}`);
+          console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`);
         }
-      } catch (err) {
-        output = `error: ${err instanceof Error ? err.message : String(err)}`;
-        if (VERBOSE) {
-          const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
-          // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
-          console.log(`❌ ${preview}\x1b[0m`);
-        } else {
-          const errorType = err instanceof Error ? err.constructor.name : String(err);
-          console.log(`❌ ${errorType}`);
-        }
-      }
 
-      // Automatically append current page state so Claude always has fresh context
-      // without needing to call snapshot explicitly.
-      let snap: string | null = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
+        let output = '';
         try {
-          snap = await page.locator('body').ariaSnapshot();
-          break;
-        } catch {
-          if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+          const r = await onTool(toolUse.name, toolUse.input as Record<string, unknown>, page);
+          if (isDone(r)) {
+            toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: r.content });
+            result = { value: r.value };
+          } else {
+            output = r;
+            const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
+            if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
+              if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
+              else console.log(`🔧 Inputs retrieved`);
+            } else {
+              console.log(`🔧 ${preview}`);
+            }
+          }
+        } catch (err) {
+          output = `error: ${err instanceof Error ? err.message : String(err)}`;
+          if (VERBOSE) {
+            const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
+            // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
+            console.log(`❌ ${preview}\x1b[0m`);
+          } else {
+            const errorType = err instanceof Error ? err.constructor.name : String(err);
+            console.log(`❌ ${errorType}`);
+          }
         }
-      }
-      if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
-      const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
-      await fs.writeFile(snapFile, snap);
-      await pruneSessionsForHost(hostSlug);
-      if (VERBOSE) {
-        const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
-        console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
-      } else {
-        console.log(`📸 Snapshot`);
-      }
-      output += `\n\nCurrent page state:\n${snap}`;
 
-      if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
-      toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
+        if (!result) {
+          // Automatically append current page state so Claude always has fresh context
+          // without needing to call snapshot explicitly.
+          let snap: string | null = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              snap = await page.locator('body').ariaSnapshot();
+              break;
+            } catch {
+              if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+            }
+          }
+          if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
+          const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+          await fs.writeFile(snapFile, snap);
+          await pruneSessionsForHost(hostSlug);
+          if (VERBOSE) {
+            const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
+            console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
+          } else {
+            console.log(`📸 Snapshot`);
+          }
+          output += `\n\nCurrent page state:\n${snap}`;
+
+          if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
+          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
+        }
+      } else {
+        // The API requires a tool_result for every tool_use in the conversation history,
+        // even for tool calls that came after the terminal tool in the same response.
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: 'skipped' });
+      }
     }
 
     messages.push({ role: 'user', content: toolResults });
