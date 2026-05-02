@@ -5,7 +5,7 @@ import type {
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import { BROWSER_TOOL, SUCCESS_TOOL, STATE_CHANGING_TOOLS } from './tools';
-import { normalizeSnapshot } from './cache';
+import { normalizeSnapshot } from './utils/normalizeSnapshot';
 import { PageCache } from './cache';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
