@@ -163,6 +163,8 @@ export async function runAgent<T>(
     let result: { value: T } | undefined;
     let replayFailed = false;
 
+    // Claude usually returns one tool call per turn for sequential browser interactions,
+    // but the API allows multiple — we execute all of them and collect their results.
     for (const toolUse of toolUses) {
       // Stub any tool_use blocks that follow the terminal tool — the API requires
       // one tool_result per tool_use in the conversation history.
