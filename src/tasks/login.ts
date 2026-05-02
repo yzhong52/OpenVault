@@ -25,7 +25,7 @@ Credentials to use:
   Password: ${creds.password}
 
 Login flow:
-  1. An initial accessibility snapshot is already provided — use it to identify the login form fields.
+  1. The current page state is already provided — use it to identify the login form fields.
   2. Fill in the credentials above and submit the form.
   3. If a multi-factor authentication (MFA) or verification code screen appears,
      call request_mfa_code with a short description of what the user should do.
@@ -108,7 +108,6 @@ export async function login(
     events.push({ description, outcome, error });
 
   await page.goto(url, { waitUntil: 'load' });
-  const initialSnapshot = await page.locator('body').ariaSnapshot();
 
   console.log('🤖 Starting login...');
 
@@ -118,7 +117,7 @@ export async function login(
       page,
       TOOLS,
       buildSystemPrompt(creds, notes),
-      `The browser has navigated to the login page. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
+      'The browser has navigated to the login page.',
       async (name, input, pg) => {
         switch (name) {
           case LOGIN_TOOL.FILL:
@@ -157,7 +156,7 @@ export async function login(
             return executeBrowserTool(name, input, pg);
         }
       },
-      { pageCache, initialSnapshot },
+      pageCache,
     );
   } finally {
     if (events.length > 0) {

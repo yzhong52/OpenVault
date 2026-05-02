@@ -77,7 +77,6 @@ export async function fetchTransactions(
     loadPageCache(institutionName, MEMORY_TASK),
   ]);
   const events: ToolEvent[] = [];
-  const initialSnapshot = await page.locator('body').ariaSnapshot();
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
     events.push({ description, outcome, error });
@@ -87,7 +86,7 @@ export async function fetchTransactions(
       page,
       TOOLS,
       buildSystemPrompt(notes),
-      `The user is now logged in. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
+      'The user is now logged in.',
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
           track('report_transactions', 'success');
@@ -112,7 +111,7 @@ export async function fetchTransactions(
 
         return executeBrowserTool(name, input, pg);
       },
-      { pageCache, initialSnapshot },
+      pageCache,
     );
   } finally {
     if (events.length > 0) {

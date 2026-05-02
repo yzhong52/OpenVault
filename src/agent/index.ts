@@ -67,16 +67,6 @@ async function pruneSessionsForHost(hostSlug: string): Promise<void> {
   }
 }
 
-export interface RunAgentOptions {
-  // A PageCache instance for cross-run snapshot caching. When provided, the agent
-  // will replay cached actions for known pages instead of calling the API.
-  // Optional so future tasks can opt out of caching if needed; all current tasks pass one.
-  pageCache?: PageCache;
-  // The initial page snapshot embedded in initialMessage. Seeding it here lets
-  // the cache hit on turn 1 without waiting for an explicit snapshot tool call.
-  initialSnapshot: string;
-}
-
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
 // onTool returns either a plain string (tool result fed back to Claude) or
 // toolDone(value) to signal completion and carry the final value out of the loop.
@@ -90,10 +80,13 @@ export async function runAgent<T>(
     input: Record<string, unknown>,
     page: Page,
   ) => Promise<string | ToolDone<T>>,
-  options: RunAgentOptions,
+  pageCache?: PageCache,
 ): Promise<T> {
-  const { pageCache, initialSnapshot } = options;
-  const messages: MessageParam[] = [{ role: 'user', content: initialMessage }];
+  const initialSnapshot = await page.locator('body').ariaSnapshot();
+  const messages: MessageParam[] = [{
+    role: 'user',
+    content: `${initialMessage}\n\nCurrent page state:\n${initialSnapshot}`,
+  }];
   const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
