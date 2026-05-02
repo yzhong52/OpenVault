@@ -107,21 +107,19 @@ export async function runAgent<T>(
     pendingSnapshot = null;
 
     // --- Cache check / API call ---
-    const cachedAction = pageCache && snapshotForCache !== null
+    const cachedActions = pageCache && snapshotForCache !== null
       ? pageCache.check(snapshotForCache)
       : null;
-    let replayId: string | null = null;
+    const replayIds = new Set<string>();
     let assistantContent: ContentBlock[];
 
-    if (cachedAction) {
-      replayId = `cache_${turn}_${Date.now()}`;
-      assistantContent = [{
-        type: 'tool_use',
-        id: replayId,
-        name: cachedAction.name,
-        input: cachedAction.input,
-      }];
-      console.log(`⚡ Replay: ${cachedAction.name}`);
+    if (cachedActions) {
+      assistantContent = cachedActions.map((action, i) => {
+        const id = `cache_${turn}_${i}_${Date.now()}`;
+        replayIds.add(id);
+        return { type: 'tool_use' as const, id, name: action.name, input: action.input };
+      });
+      console.log(`⚡ Replay: ${cachedActions.map(a => a.name).join(', ')}`);
     } else {
       debug('\n── prompt to claude ──────────────────────────────');
       debug(JSON.stringify(messages[messages.length - 1], null, 2));
@@ -140,16 +138,12 @@ export async function runAgent<T>(
 
       assistantContent = response.content;
 
-      // Record the first tool Claude chose, keyed by the snapshot that prompted it.
+      // Record all tools Claude chose, keyed by the snapshot that prompted them.
       if (pageCache && snapshotForCache !== null) {
-        const toolUse = assistantContent.find((b): b is ToolUseBlock => b.type === 'tool_use');
-        if (toolUse) {
-          pageCache.record(
-            snapshotForCache,
-            toolUse.name,
-            toolUse.input as Record<string, unknown>,
-          );
-        }
+        const toolUses = assistantContent
+          .filter((b): b is ToolUseBlock => b.type === 'tool_use')
+          .map(t => ({ name: t.name, input: t.input as Record<string, unknown> }));
+        if (toolUses.length > 0) pageCache.record(snapshotForCache, toolUses);
       }
     }
 
@@ -208,7 +202,7 @@ export async function runAgent<T>(
 
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
-        if (replayId && toolUse.id === replayId) replayFailed = true;
+        if (replayIds.has(toolUse.id)) replayFailed = true;
         if (VERBOSE) {
           const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
           // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.

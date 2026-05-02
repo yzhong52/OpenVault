@@ -4,7 +4,7 @@ import * as path from 'path';
 import { DATA_DIR } from '../db';
 import { ACCOUNT_TOOL, LOGIN_TOOL, TRANSACTION_TOOL } from './tools';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const VERBOSE = process.env.VERBOSE === '1' || process.env.DEBUG === '1';
 
 /** SHA-256 of a normalized snapshot, truncated to 16 hex characters. */
@@ -22,7 +22,7 @@ export interface CachedAction {
 interface CacheData {
   /** Incremented when the file format changes; mismatches cause the file to be discarded. */
   version: number;
-  steps: Record<Fingerprint, CachedAction>;
+  steps: Record<Fingerprint, CachedAction[]>;
   /** ISO 8601 timestamp of the last write. Informational only — never read back. */
   updatedAt: string;
 }
@@ -114,27 +114,32 @@ export class PageCache {
     this.filePath = filePath;
   }
 
-  /** Look up the cached action for a snapshot. Returns null on a cache miss,
+  /** Look up the cached actions for a snapshot. Returns null on a cache miss,
    *  or if the snapshot's fingerprint was previously marked as failed via
    *  `failSnapshot()` — in both cases the caller should fall back to Claude. */
-  check(snapshot: string): CachedAction | null {
+  check(snapshot: string): CachedAction[] | null {
     const h = fp(snapshot);
     if (this.failedFps.has(h)) return null;
     return this.data.steps[h] ?? null;
   }
 
-  /** Record what action Claude chose in response to a snapshot, so it can be
-   *  replayed on the next run. No-ops for non-cacheable tools (e.g. password
-   *  fills, report_accounts). Call this after every real Claude API response,
-   *  not after replays. */
-  record(snapshot: string, name: string, input: Record<string, unknown>): void {
-    if (!isCacheable(name, input)) return;
+  /** Record the actions Claude chose in response to a snapshot, so they can be
+   *  replayed on the next run. Filters out non-cacheable tools (e.g. password
+   *  fills, report_accounts). No-ops if all actions are non-cacheable or if the
+   *  entry is unchanged. Call this after every real Claude API response, not after replays. */
+  record(snapshot: string, actions: CachedAction[]): void {
+    const cacheable = actions.filter(a => isCacheable(a.name, a.input));
+    if (cacheable.length === 0) return;
     const h = fp(snapshot);
     const existing = this.data.steps[h];
-    const inputUnchanged = existing?.name === name
-      && stableStringify(existing.input) === stableStringify(input);
-    if (inputUnchanged) return; // unchanged
-    this.data.steps[h] = { name, input };
+    const unchanged = existing !== undefined
+      && existing.length === cacheable.length
+      && existing.every((e, i) =>
+        e.name === cacheable[i].name
+        && stableStringify(e.input) === stableStringify(cacheable[i].input),
+      );
+    if (unchanged) return;
+    this.data.steps[h] = cacheable;
     this.data.updatedAt = new Date().toISOString();
     this.dirty = true;
   }

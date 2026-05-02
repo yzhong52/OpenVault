@@ -82,28 +82,42 @@ describe('PageCache', () => {
     expect(cache.check('- button "Log in"')).toBeNull();
   });
 
-  it('returns a recorded action on cache hit', async () => {
+  it('returns recorded actions on cache hit', () => {
     const cache = createPageCache(cacheFile);
     const snap = '- button "Log in"';
-    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     const hit = cache.check(snap);
     expect(hit).not.toBeNull();
-    expect(hit!.name).toBe('click');
-    expect(hit!.input).toEqual({ role: 'button', name: 'Log in' });
+    expect(hit).toHaveLength(1);
+    expect(hit![0].name).toBe('click');
+    expect(hit![0].input).toEqual({ role: 'button', name: 'Log in' });
+  });
+
+  it('stores and replays multiple actions per snapshot', () => {
+    const cache = createPageCache(cacheFile);
+    const snap = '- button "A"\n- button "B"';
+    cache.record(snap, [
+      { name: 'click', input: { role: 'button', name: 'A' } },
+      { name: 'click', input: { role: 'button', name: 'B' } },
+    ]);
+    const hit = cache.check(snap);
+    expect(hit).toHaveLength(2);
+    expect(hit![0].input).toEqual({ role: 'button', name: 'A' });
+    expect(hit![1].input).toEqual({ role: 'button', name: 'B' });
   });
 
   it('treats structurally equivalent snapshots as the same key', () => {
     const cache = createPageCache(cacheFile);
     const snap1 = '- text "Total equity"\n- text "$258,486.25"';
     const snap2 = '- text "Total equity"\n- text "$301,200.00"';
-    cache.record(snap1, 'click', { role: 'link', name: 'View accounts' });
+    cache.record(snap1, [{ name: 'click', input: { role: 'link', name: 'View accounts' } }]);
     expect(cache.check(snap2)).not.toBeNull();
   });
 
   it('returns null after failSnapshot', () => {
     const cache = createPageCache(cacheFile);
     const snap = '- button "Submit"';
-    cache.record(snap, 'click', { role: 'button', name: 'Submit' });
+    cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Submit' } }]);
     cache.failSnapshot(snap);
     expect(cache.check(snap)).toBeNull();
   });
@@ -111,11 +125,11 @@ describe('PageCache', () => {
   it('does not mark dirty when recording an unchanged entry', async () => {
     const cache = createPageCache(cacheFile);
     const snap = '- button "Log in"';
-    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     await cache.flush();
     const mtime1 = (await fs.stat(cacheFile)).mtimeMs;
 
-    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     await cache.flush();
     const mtime2 = (await fs.stat(cacheFile)).mtimeMs;
 
@@ -125,26 +139,23 @@ describe('PageCache', () => {
   it('treats key-order-different inputs as equal', () => {
     const cache = createPageCache(cacheFile);
     const snap = '- button "Log in"';
-    cache.record(snap, 'click', { name: 'Log in', role: 'button' });
-    const hit = cache.check(snap);
-    // Record again with reversed key order — should not mark dirty (no change)
+    cache.record(snap, [{ name: 'click', input: { name: 'Log in', role: 'button' } }]);
     const snapBefore = JSON.stringify((cache as unknown as { data: { steps: unknown } }).data.steps);
-    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     const snapAfter = JSON.stringify((cache as unknown as { data: { steps: unknown } }).data.steps);
     expect(snapAfter).toBe(snapBefore);
-    expect(hit).not.toBeNull();
   });
 
   it('persists entries to disk and loads them back', async () => {
     const cache = createPageCache(cacheFile);
     const snap = '- button "Log in"';
-    cache.record(snap, 'click', { role: 'button', name: 'Log in' });
+    cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     await cache.flush();
 
     const loaded = await loadPageCacheFromFile(cacheFile);
     const hit = loaded.check(snap);
     expect(hit).not.toBeNull();
-    expect(hit!.name).toBe('click');
+    expect(hit![0].name).toBe('click');
   });
 
   it('starts fresh when the cache file has a wrong version', async () => {
