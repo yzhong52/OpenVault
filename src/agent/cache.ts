@@ -2,10 +2,10 @@ import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DATA_DIR } from '../db';
-import { ACCOUNT_TOOL, LOGIN_TOOL, TRANSACTION_TOOL } from './tools';
+import { ACCOUNT_TOOL, BROWSER_TOOL, LOGIN_TOOL, TRANSACTION_TOOL } from './tools';
 
 // Bump this whenever the CacheData shape changes — mismatched files are discarded and rebuilt.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const VERBOSE = process.env.VERBOSE === '1' || process.env.DEBUG === '1';
 
 /** SHA-256 of a normalized snapshot, truncated to 16 hex characters. */
@@ -55,8 +55,14 @@ const NORMALIZE_RULES: Array<[RegExp, string]> = [
 // Tool inputs containing these field names hold credential values — don't cache them.
 const SENSITIVE_FIELD_RE = /password|passcode|pin|secret|cvv|ssn/i;
 
-// Tools whose inputs embed live session data that must not be cached verbatim.
+// Tools that must never be cached. Observation tools (snapshot, frame_snapshot,
+// get_inputs) are excluded because caching "look at the page" causes replay loops —
+// replaying a snapshot sets pendingSnapshot, which can hit another snapshot entry,
+// and so on indefinitely. Report tools are excluded because they embed live session data.
 const NON_CACHEABLE_TOOLS = new Set<string>([
+  BROWSER_TOOL.SNAPSHOT,
+  BROWSER_TOOL.FRAME_SNAPSHOT,
+  BROWSER_TOOL.GET_INPUTS,
   ACCOUNT_TOOL.REPORT_ACCOUNTS,
   TRANSACTION_TOOL.REPORT_TRANSACTIONS,
 ]);
