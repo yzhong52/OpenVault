@@ -132,6 +132,8 @@ export async function runAgent<T>(
         max_tokens: 1024,
         system: systemPrompt,
         tools,
+        // 'any' forces a tool call every turn — 'auto' would allow plain-text replies,
+        // which would break the loop (line below throws if no tool calls are returned).
         tool_choice: { type: 'any' },
         messages,
       });
