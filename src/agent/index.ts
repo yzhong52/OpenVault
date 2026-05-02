@@ -129,21 +129,13 @@ export async function runAgent<T>(
           continue;
         }
         output = r;
-
         const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
-        if (toolUse.name === BROWSER_TOOL.SNAPSHOT) {
-          const file = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
-          await fs.writeFile(file, output);
-          await pruneSessionsForHost(hostSlug);
-          if (VERBOSE) console.log(`🔧 snapshot taken:\n${preview}\nSee full snapshot in ${file}`);
-          else console.log(`🔧 Snapshot taken`);
-        } else if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
+        if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
           if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
           else console.log(`🔧 Inputs retrieved`);
         } else {
           console.log(`🔧 ${preview}`);
         }
-        
       } catch (err) {
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
         if (VERBOSE) {
@@ -155,7 +147,30 @@ export async function runAgent<T>(
           console.log(`❌ ${errorType}`);
         }
       }
-      
+
+      // Automatically append current page state so Claude always has fresh context
+      // without needing to call snapshot explicitly.
+      let snap: string | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          snap = await page.locator('body').ariaSnapshot();
+          break;
+        } catch {
+          if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
+      const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+      await fs.writeFile(snapFile, snap);
+      await pruneSessionsForHost(hostSlug);
+      if (VERBOSE) {
+        const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
+        console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
+      } else {
+        console.log(`📸 Snapshot`);
+      }
+      output += `\n\nCurrent page state:\n${snap}`;
+
       if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
       toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
     }
