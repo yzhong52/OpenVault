@@ -5,6 +5,7 @@ import type {
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import { BROWSER_TOOL, SUCCESS_TOOL, STATE_CHANGING_TOOLS } from './tools';
+import { normalizeSnapshot } from './cache';
 import { PageCache } from './cache';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
@@ -202,7 +203,15 @@ export async function runAgent<T>(
           // hit the cache without Claude needing to call snapshot explicitly first.
           if (pageCache && STATE_CHANGING_TOOLS.has(toolUse.name)) {
             try {
-              pendingSnapshot = await page.locator('body').ariaSnapshot();
+              const autoSnap = await page.locator('body').ariaSnapshot();
+              // If the page structure didn't change, the action was a no-op for
+              // caching purposes — invalidate the entry to prevent a replay loop.
+              if (snapshotForCache !== null
+                  && normalizeSnapshot(autoSnap) === normalizeSnapshot(snapshotForCache)) {
+                pageCache.failSnapshot(snapshotForCache);
+              } else {
+                pendingSnapshot = autoSnap;
+              }
             } catch {
               // Ignore — cache will just miss on the next turn
             }
