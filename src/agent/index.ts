@@ -4,7 +4,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
-import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
+import { BROWSER_TOOL, SUCCESS_TOOL, STATE_CHANGING_TOOLS } from './tools';
 import { PageCache } from './cache';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
@@ -198,6 +198,15 @@ export async function runAgent<T>(
           else console.log(`🔧 Inputs retrieved`);
         } else {
           console.log(`🔧 ${preview}`);
+          // Implicitly snapshot after state-changing actions so the next turn can
+          // hit the cache without Claude needing to call snapshot explicitly first.
+          if (pageCache && STATE_CHANGING_TOOLS.has(toolUse.name)) {
+            try {
+              pendingSnapshot = await page.locator('body').ariaSnapshot();
+            } catch {
+              // Ignore — cache will just miss on the next turn
+            }
+          }
         }
 
       } catch (err) {

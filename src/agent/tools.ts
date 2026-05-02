@@ -31,3 +31,12 @@ export const ACCOUNT_TOOL = {
 export const TRANSACTION_TOOL = {
   REPORT_TRANSACTIONS: 'report_transactions',
 } as const;
+
+/** Tools that modify page or form state. The agent loop takes an implicit snapshot
+ *  after each one so the cache can fingerprint the result without waiting for Claude
+ *  to explicitly call the snapshot tool. */
+export const STATE_CHANGING_TOOLS = new Set<string>([
+  BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
+  BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.FILL_JS, BROWSER_TOOL.PRESS_ENTER,
+  LOGIN_TOOL.FILL, LOGIN_TOOL.TYPE,
+]);
