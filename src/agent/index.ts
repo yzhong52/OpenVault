@@ -10,13 +10,12 @@ import { PageCache } from './cache';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
 
-export { PageCache };
+export { PageCache, SUCCESS_TOOL };
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
 export const DEBUG = process.env.DEBUG === '1';
 export const VERBOSE = process.env.VERBOSE === '1' || DEBUG;
-export { SUCCESS_TOOL };
 const MAX_SESSIONS_PER_HOST = 10;
 
 export function debug(...args: unknown[]): void {
@@ -109,15 +108,16 @@ export async function runAgent<T>(
     const cachedActions = pageCache && snapshotForCache !== null
       ? pageCache.check(snapshotForCache)
       : null;
-    const replayIds = new Set<string>();
+    const isReplay = !!cachedActions;
     let assistantContent: ContentBlock[];
 
     if (cachedActions) {
-      assistantContent = cachedActions.map((action, i) => {
-        const id = `cache_${turn}_${i}_${Date.now()}`;
-        replayIds.add(id);
-        return { type: 'tool_use' as const, id, name: action.name, input: action.input };
-      });
+      assistantContent = cachedActions.map((action, i) => ({
+        type: 'tool_use' as const,
+        id: `cache_${turn}_${i}`,
+        name: action.name,
+        input: action.input,
+      }));
       console.log(`⚡ Replay: ${cachedActions.map(a => a.name).join(', ')}`);
     } else {
       debug('\n── prompt to claude ──────────────────────────────');
@@ -156,8 +156,6 @@ export async function runAgent<T>(
     let result: { value: T } | undefined;
     let replayFailed = false;
 
-    // Claude usually returns one tool call per turn for sequential browser interactions,
-    // but the API allows multiple — we execute all of them and collect their results.
     for (const toolUse of toolUses) {
       if (!result) {
         if (toolUse.name === SUCCESS_TOOL) {
@@ -186,7 +184,7 @@ export async function runAgent<T>(
           }
         } catch (err) {
           output = `error: ${err instanceof Error ? err.message : String(err)}`;
-          if (replayIds.has(toolUse.id)) replayFailed = true;
+          if (isReplay) replayFailed = true;
           if (VERBOSE) {
             const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
             // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
