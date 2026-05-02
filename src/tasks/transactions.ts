@@ -72,7 +72,6 @@ export async function fetchTransactions(
   console.log('🤖 fetching transactions...');
 
   const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
-  const initialSnapshot = await page.locator('body').ariaSnapshot();
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -83,7 +82,7 @@ export async function fetchTransactions(
       page,
       TOOLS,
       buildSystemPrompt(notes),
-      `The user is now logged in. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
+      'The user is now logged in.',
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
           track('report_transactions', 'success');

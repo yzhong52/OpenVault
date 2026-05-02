@@ -70,7 +70,6 @@ export async function exploreAccounts(page: Page, institutionName: string): Prom
   console.log('🤖 Exploring accounts...');
 
   const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
-  const initialSnapshot = await page.locator('body').ariaSnapshot();
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -81,7 +80,7 @@ export async function exploreAccounts(page: Page, institutionName: string): Prom
       page,
       TOOLS,
       buildSystemPrompt(notes),
-      `The user is now logged in. Here is the current accessibility snapshot:\n\n${initialSnapshot}`,
+      'The user is now logged in.',
       async (name, input, pg) => {
         if (name === REPORT_ACCOUNTS) {
           track('report_accounts', 'success');

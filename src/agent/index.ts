@@ -75,7 +75,11 @@ export async function runAgent<T>(
     page: Page,
   ) => Promise<string | ToolDone<T>>,
 ): Promise<T> {
-  const messages: MessageParam[] = [{ role: 'user', content: initialMessage }];
+  const initialSnapshot = await page.locator('body').ariaSnapshot();
+  const messages: MessageParam[] = [{
+    role: 'user',
+    content: `${initialMessage}\n\nCurrent page state:\n${initialSnapshot}`,
+  }];
   const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
