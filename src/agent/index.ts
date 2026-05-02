@@ -21,7 +21,9 @@ let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!_client) {
     const apiKey = keychainLoadApiKey() ?? process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('Anthropic API key not found. Run: npm run cli -- config anthropic');
+    if (!apiKey) throw new Error(
+      'Anthropic API key not found. Run: npm run cli -- config anthropic',
+    );
     _client = new Anthropic({ apiKey });
   }
   return _client;
@@ -64,7 +66,11 @@ export async function runAgent<T>(
   tools: Tool[],
   systemPrompt: string,
   initialMessage: string,
-  onTool: (name: string, input: Record<string, unknown>, page: Page) => Promise<string | ToolDone<T>>,
+  onTool: (
+    name: string,
+    input: Record<string, unknown>,
+    page: Page,
+  ) => Promise<string | ToolDone<T>>,
 ): Promise<T> {
   const messages: MessageParam[] = [{ role: 'user', content: initialMessage }];
   const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
@@ -142,7 +148,7 @@ export async function runAgent<T>(
         output = `error: ${err instanceof Error ? err.message : String(err)}`;
         if (VERBOSE) {
           const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
-          // Playwright errors contain ANSI colour codes; the reset '\x1b[0m' prevents terminal colour bleed.
+          // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
           console.log(`❌ ${preview}\x1b[0m`);
         } else {
           const errorType = err instanceof Error ? err.constructor.name : String(err);

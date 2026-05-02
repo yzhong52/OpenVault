@@ -3,7 +3,10 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { TRANSACTION_TOOL } from '../agent/tools';
-import { loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt, generateSessionNotes, type ToolEvent } from '../memory';
+import {
+  loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
+  generateSessionNotes, type ToolEvent,
+} from '../memory';
 
 export interface Transaction {
   date: string;
@@ -63,7 +66,9 @@ Do not navigate away from the institution's site. Do not click login/logout link
 }
 
 // TODO: implement fetchTransactions and integrate it into the sync pipeline (src/commands/sync.ts)
-export async function fetchTransactions(page: Page, institutionName: string): Promise<Transaction[]> {
+export async function fetchTransactions(
+  page: Page, institutionName: string,
+): Promise<Transaction[]> {
   console.log('🤖 fetching transactions...');
 
   const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
@@ -81,7 +86,8 @@ export async function fetchTransactions(page: Page, institutionName: string): Pr
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
           track('report_transactions', 'success');
-          return toolDone<Transaction[]>((input as { transactions: Transaction[] }).transactions, 'transactions recorded');
+          const transactions = (input as { transactions: Transaction[] }).transactions;
+          return toolDone<Transaction[]>(transactions, 'transactions recorded');
         }
 
         if (TRACKED_TOOLS.has(name)) {
@@ -93,7 +99,8 @@ export async function fetchTransactions(page: Page, institutionName: string): Pr
             track(desc, 'success');
             return result;
           } catch (err) {
-            track(desc, 'error', err instanceof Error ? err.message.split('\n')[0] : String(err));
+            const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+            track(desc, 'error', msg);
             throw err;
           }
         }
@@ -104,7 +111,9 @@ export async function fetchTransactions(page: Page, institutionName: string): Pr
   } finally {
     if (events.length > 0) {
       console.log('🤖 Summarizing session...');
-      const sessionNotes = await generateSessionNotes(events, 'fetching recent transactions from a financial institution');
+      const sessionNotes = await generateSessionNotes(
+        events, 'fetching recent transactions from a financial institution',
+      );
       await saveMemoryNotes(institutionName, MEMORY_TASK, sessionNotes);
     }
   }
