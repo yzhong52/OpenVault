@@ -3,6 +3,7 @@ import { makeInstitutionCommand } from './commands/institution';
 import { makeSyncCommand } from './commands/sync';
 import { makeAccountsCommand } from './commands/accounts';
 import { makeConfigCommand } from './commands/config';
+import { makeBrowserCommand } from './commands/browser';
 
 const program = new Command();
 
@@ -14,5 +15,6 @@ program.addCommand(makeInstitutionCommand());
 program.addCommand(makeSyncCommand());
 program.addCommand(makeAccountsCommand());
 program.addCommand(makeConfigCommand());
+program.addCommand(makeBrowserCommand());
 
 program.parse();

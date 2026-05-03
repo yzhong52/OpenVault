@@ -1,13 +1,11 @@
-import * as fs from 'fs/promises';
 import { Command } from 'commander';
-import { chromium } from 'playwright';
 import { login } from '../tasks/login';
 import { exploreAccounts } from '../tasks/accounts';
 import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
 import { saveSync } from '../db/storage';
-import { prompt, readInstitutions, printAccountsTable, PROFILE_DIR } from './utils';
+import { prompt, readInstitutions, printAccountsTable, launchBrowser } from './utils';
 
 export function makeSyncCommand(): Command {
   return new Command('sync')
@@ -35,14 +33,8 @@ export function makeSyncCommand(): Command {
         return;
       }
 
-      await fs.mkdir(PROFILE_DIR, { recursive: true });
-
       const { db, close } = openDb();
-      const context = await chromium.launchPersistentContext(PROFILE_DIR, {
-        headless: false,
-        channel: 'chrome',
-        args: ['--disable-blink-features=AutomationControlled'],
-      });
+      const context = await launchBrowser();
 
       try {
         const page = context.pages()[0] ?? await context.newPage();
