@@ -2,7 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
-import { loadPageCache } from '../agent/cache';
+import { loadActionCache } from '../agent/cache';
 import { ACCOUNT_TOOL } from '../agent/tools';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
@@ -72,9 +72,9 @@ export async function exploreAccounts(
 ): Promise<Account[]> {
   console.log('🤖 Exploring accounts...');
 
-  const [notes, pageCache] = await Promise.all([
+  const [notes, actionCache] = await Promise.all([
     loadMemoryNotes(institutionName, MEMORY_TASK),
-    loadPageCache(institutionName, MEMORY_TASK),
+    loadActionCache(institutionName, MEMORY_TASK),
   ]);
   const events: ToolEvent[] = [];
 
@@ -113,7 +113,7 @@ export async function exploreAccounts(
       },
       sessionDir,
       'conversation_accounts',
-      pageCache,
+      actionCache,
     );
   } finally {
     if (events.length > 0) {

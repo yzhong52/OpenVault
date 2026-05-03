@@ -3,7 +3,7 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import * as readline from 'readline';
 import { runAgent, toolDone } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
-import { loadPageCache } from '../agent/cache';
+import { loadActionCache } from '../agent/cache';
 import { LOGIN_TOOL } from '../agent/tools';
 import { fetchMfaCode } from '../gmail';
 import {
@@ -98,9 +98,9 @@ export async function login(
   page: Page, url: string, creds: Credentials, institutionName: string, sessionDir: string,
 ): Promise<void> {
   const loginStartedAt = new Date();
-  const [notes, pageCache] = await Promise.all([
+  const [notes, actionCache] = await Promise.all([
     loadMemoryNotes(institutionName, 'login'),
-    loadPageCache(institutionName, 'login'),
+    loadActionCache(institutionName, 'login'),
   ]);
   const events: ToolEvent[] = [];
 
@@ -158,7 +158,7 @@ export async function login(
       },
       sessionDir,
       'conversation_login',
-      pageCache,
+      actionCache,
     );
   } finally {
     if (events.length > 0) {

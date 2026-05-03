@@ -7,11 +7,11 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
 import { normalizeSnapshot } from './utils/normalizeSnapshot';
-import { PageCache } from './cache';
+import { ActionCache } from './cache';
 import { LOGS_DIR } from '../db';
 import { keychainLoadApiKey } from '../keychain';
 
-export { PageCache, SUCCESS_TOOL };
+export { ActionCache, SUCCESS_TOOL };
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
@@ -103,7 +103,7 @@ export async function runAgent<T>(
   ) => Promise<string | ToolDone<T>>,
   sessionDir: string,
   logName: string,
-  pageCache?: PageCache,
+  actionCache?: ActionCache,
 ): Promise<T> {
   let snapCount = 0;
 
@@ -161,8 +161,8 @@ export async function runAgent<T>(
     const snapshotForCache = pendingSnapshot;
     pendingSnapshot = null;
 
-    const cachedActions = pageCache && snapshotForCache !== null
-      ? pageCache.check(snapshotForCache)
+    const cachedActions = actionCache && snapshotForCache !== null
+      ? actionCache.check(snapshotForCache)
       : null;
     const isReplay = !!cachedActions;
     let assistantContent: ContentBlock[];
@@ -189,11 +189,11 @@ export async function runAgent<T>(
       assistantContent = response.content;
 
       // Record all tools Claude chose, keyed by the snapshot that prompted them.
-      if (pageCache && snapshotForCache !== null) {
+      if (actionCache && snapshotForCache !== null) {
         const toolUses = assistantContent
           .filter((b): b is ToolUseBlock => b.type === 'tool_use')
           .map(t => ({ name: t.name, input: t.input as Record<string, unknown> }));
-        if (toolUses.length > 0) pageCache.record(snapshotForCache, toolUses);
+        if (toolUses.length > 0) actionCache.record(snapshotForCache, toolUses);
       }
     }
 
@@ -258,8 +258,8 @@ export async function runAgent<T>(
 
     // Invalidate this snapshot's cache entry for the remainder of the run so
     // the next iteration calls Claude instead of replaying the same bad action.
-    if (replayFailed && snapshotForCache !== null && pageCache) {
-      pageCache.failSnapshot(snapshotForCache);
+    if (replayFailed && snapshotForCache !== null && actionCache) {
+      actionCache.failSnapshot(snapshotForCache);
       console.log('⚡ Replay failed — falling back to Claude');
     }
 
@@ -268,13 +268,13 @@ export async function runAgent<T>(
       // Invalidate cache if the action was a no-op (page structure didn't change).
       if (snapshotForCache !== null
           && normalizeSnapshot(snap) === normalizeSnapshot(snapshotForCache)) {
-        pageCache?.failSnapshot(snapshotForCache);
+        actionCache?.failSnapshot(snapshotForCache);
       } else {
         pendingSnapshot = snap;
       }
       messages.push({ role: 'user', content: [...toolResults, pageStateMessage(snap)] });
     } else {
-      await pageCache?.flush();
+      await actionCache?.flush();
       return result.value;
     }
   }

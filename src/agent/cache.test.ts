@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { createPageCache, loadPageCacheFromFile } from './cache';
+import { createActionCache, loadActionCacheFromFile } from './cache';
 
-describe('PageCache', () => {
+describe('ActionCache', () => {
   let tmpDir: string;
   let cacheFile: string;
 
@@ -18,12 +18,12 @@ describe('PageCache', () => {
   });
 
   it('returns null on cache miss', () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     expect(cache.check('- button "Log in"')).toBeNull();
   });
 
   it('returns recorded actions on cache hit', () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap = '- button "Log in"';
     cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     const hit = cache.check(snap);
@@ -34,7 +34,7 @@ describe('PageCache', () => {
   });
 
   it('stores and replays multiple actions per snapshot', () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap = '- button "A"\n- button "B"';
     cache.record(snap, [
       { name: 'click', input: { role: 'button', name: 'A' } },
@@ -47,7 +47,7 @@ describe('PageCache', () => {
   });
 
   it('treats structurally equivalent snapshots as the same key', () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap1 = '- text "Total equity"\n- text "$258,486.25"';
     const snap2 = '- text "Total equity"\n- text "$301,200.00"';
     cache.record(snap1, [{ name: 'click', input: { role: 'link', name: 'View accounts' } }]);
@@ -55,7 +55,7 @@ describe('PageCache', () => {
   });
 
   it('returns null after failSnapshot', () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap = '- button "Submit"';
     cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Submit' } }]);
     cache.failSnapshot(snap);
@@ -63,7 +63,7 @@ describe('PageCache', () => {
   });
 
   it('does not mark dirty when recording an unchanged entry', async () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap = '- button "Log in"';
     cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     await cache.flush();
@@ -77,7 +77,7 @@ describe('PageCache', () => {
   });
 
   it('treats key-order-different inputs as equal', () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap = '- button "Log in"';
     cache.record(snap, [{ name: 'click', input: { name: 'Log in', role: 'button' } }]);
     const snapBefore = JSON.stringify((cache as unknown as { data: { steps: unknown } }).data.steps);
@@ -87,12 +87,12 @@ describe('PageCache', () => {
   });
 
   it('persists entries to disk and loads them back', async () => {
-    const cache = createPageCache(cacheFile);
+    const cache = createActionCache(cacheFile);
     const snap = '- button "Log in"';
     cache.record(snap, [{ name: 'click', input: { role: 'button', name: 'Log in' } }]);
     await cache.flush();
 
-    const loaded = await loadPageCacheFromFile(cacheFile);
+    const loaded = await loadActionCacheFromFile(cacheFile);
     const hit = loaded.check(snap);
     expect(hit).not.toBeNull();
     expect(hit![0].name).toBe('click');
@@ -100,19 +100,19 @@ describe('PageCache', () => {
 
   it('starts fresh when the cache file has a wrong version', async () => {
     await fs.writeFile(cacheFile, JSON.stringify({ version: 999, steps: {}, updatedAt: '' }));
-    const cache = await loadPageCacheFromFile(cacheFile);
+    const cache = await loadActionCacheFromFile(cacheFile);
     expect(cache.check('- button "Log in"')).toBeNull();
   });
 
   it('starts fresh when the cache file is corrupt JSON', async () => {
     await fs.writeFile(cacheFile, 'not valid json');
-    const cache = await loadPageCacheFromFile(cacheFile);
+    const cache = await loadActionCacheFromFile(cacheFile);
     expect(cache.check('- button "Log in"')).toBeNull();
   });
 
   it('starts fresh when steps is an array instead of an object', async () => {
     await fs.writeFile(cacheFile, JSON.stringify({ version: 1, steps: [], updatedAt: '' }));
-    const cache = await loadPageCacheFromFile(cacheFile);
+    const cache = await loadActionCacheFromFile(cacheFile);
     expect(cache.check('- button "Log in"')).toBeNull();
   });
 });

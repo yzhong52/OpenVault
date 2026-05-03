@@ -82,7 +82,7 @@ function emptyData(): CacheData {
  *  pages the agent has already seen. On a cache hit the stored action is
  *  replayed directly; on a miss or replay failure the agent falls back to
  *  Claude and updates the cache with whatever Claude does next. */
-export class PageCache {
+export class ActionCache {
   private data: CacheData;
   private filePath: string;
   /** True when in-memory steps differ from what's on disk; flush() writes and clears it. */
@@ -143,7 +143,7 @@ export class PageCache {
   }
 }
 
-async function readCacheFile(filePath: string): Promise<PageCache> {
+async function readCacheFile(filePath: string): Promise<ActionCache> {
   try {
     const raw = JSON.parse(await fs.readFile(filePath, 'utf-8')) as CacheData;
     const invalid = raw.version !== CACHE_VERSION
@@ -151,28 +151,28 @@ async function readCacheFile(filePath: string): Promise<PageCache> {
       || Array.isArray(raw.steps);
     if (invalid) {
       // Stale or corrupt — start fresh.
-      return new PageCache(emptyData(), filePath);
+      return new ActionCache(emptyData(), filePath);
     }
     const count = Object.keys(raw.steps).length;
     if (VERBOSE) console.log(`📂 Loaded page cache: ${count} ${count === 1 ? 'entry' : 'entries'}`);
-    return new PageCache(raw, filePath);
+    return new ActionCache(raw, filePath);
   } catch {
-    return new PageCache(emptyData(), filePath);
+    return new ActionCache(emptyData(), filePath);
   }
 }
 
-export async function loadPageCache(institution: string, task: string): Promise<PageCache> {
+export async function loadActionCache(institution: string, task: string): Promise<ActionCache> {
   const slug = institution.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   const filePath = path.join(DATA_DIR, 'page-cache', `${slug}-${task}.json`);
   return readCacheFile(filePath);
 }
 
 /** Create an empty cache backed by the given file path. Intended for tests. */
-export function createPageCache(filePath: string): PageCache {
-  return new PageCache(emptyData(), filePath);
+export function createActionCache(filePath: string): ActionCache {
+  return new ActionCache(emptyData(), filePath);
 }
 
 /** Load a cache from an explicit file path. Intended for tests. */
-export async function loadPageCacheFromFile(filePath: string): Promise<PageCache> {
+export async function loadActionCacheFromFile(filePath: string): Promise<ActionCache> {
   return readCacheFile(filePath);
 }
