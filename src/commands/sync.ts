@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { chromium } from 'playwright';
 import { login } from '../tasks/login';
 import { exploreAccounts } from '../tasks/accounts';
+import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
 import { saveSync } from '../db/storage';
@@ -56,9 +57,10 @@ export function makeSyncCommand(): Command {
           }
 
           console.log(`\n🤖 Syncing ${inst.name}...`);
-          await login(page, inst.url, { username: inst.username, password }, inst.name);
+          const sessionDir = await createSession(inst.url);
+          await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
 
-          const accounts = await exploreAccounts(page, inst.name);
+          const accounts = await exploreAccounts(page, inst.name, sessionDir);
           saveSync(db, inst.name, inst.url, accounts);
 
           console.log(`\n${inst.name} accounts:`);

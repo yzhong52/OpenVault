@@ -95,7 +95,7 @@ const TRACKED_TOOLS = new Set<string>([
 ]);
 
 export async function login(
-  page: Page, url: string, creds: Credentials, institutionName: string,
+  page: Page, url: string, creds: Credentials, institutionName: string, sessionDir: string,
 ): Promise<void> {
   const loginStartedAt = new Date();
   const notes = await loadMemoryNotes(institutionName, 'login');
@@ -153,6 +153,8 @@ export async function login(
             return executeBrowserTool(name, input, pg);
         }
       },
+      sessionDir,
+      'conversation_login',
     );
   } finally {
     if (events.length > 0) {

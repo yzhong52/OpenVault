@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
 export { SUCCESS_TOOL } from './tools';
 import { LOGS_DIR } from '../db';
@@ -61,6 +62,17 @@ async function pruneSessionsForHost(hostSlug: string): Promise<void> {
   }
 }
 
+export async function createSession(url: string): Promise<string> {
+  const hostSlug = new URL(url).hostname.replace(/\./g, '_');
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
+  const sessionDir = `${LOGS_DIR}/${hostSlug}_${date}_${time}`;
+  await fs.mkdir(sessionDir, { recursive: true });
+  await pruneSessionsForHost(hostSlug);
+  return sessionDir;
+}
+
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
 //
 // systemPrompt: persistent instructions passed via the `system` API parameter, visible on every
@@ -84,15 +96,10 @@ export async function runAgent<T>(
     input: Record<string, unknown>,
     page: Page,
   ) => Promise<string | ToolDone<T>>,
+  sessionDir: string,
+  logName: string,
 ): Promise<T> {
-  const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
-  const sessionDir = `${LOGS_DIR}/${hostSlug}_${date}_${time}`;
   let snapCount = 0;
-  await fs.mkdir(sessionDir, { recursive: true });
-  await pruneSessionsForHost(hostSlug);
 
   async function takeSnapshot(): Promise<string> {
     let snap: string | null = null;
@@ -121,8 +128,8 @@ export async function runAgent<T>(
     content: [{ type: 'text', text: initialMessage }, pageStateMessage(await takeSnapshot())],
   }];
 
-  const logFile = `${sessionDir}/conversation.md`;
-  await fs.writeFile(logFile, `# ${hostSlug} ${date} ${time}\n\n## System Prompt\n\n${systemPrompt}\n\n`);
+  const logFile = `${sessionDir}/${logName}.md`;
+  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${systemPrompt}\n\n`);
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const lastMsg = messages[messages.length - 1];
