@@ -85,11 +85,6 @@ export async function runAgent<T>(
     page: Page,
   ) => Promise<string | ToolDone<T>>,
 ): Promise<T> {
-  const initialSnapshot = await page.locator('body').ariaSnapshot();
-  const messages: MessageParam[] = [{
-    role: 'user',
-    content: [{ type: 'text', text: initialMessage }, pageStateMessage(initialSnapshot)],
-  }];
   const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
@@ -98,6 +93,33 @@ export async function runAgent<T>(
   let snapCount = 0;
   await fs.mkdir(sessionDir, { recursive: true });
   await pruneSessionsForHost(hostSlug);
+
+  async function takeSnapshot(): Promise<string> {
+    let snap: string | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        snap = await page.locator('body').ariaSnapshot();
+        break;
+      } catch {
+        if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
+    const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+    await fs.writeFile(snapFile, snap);
+    if (VERBOSE) {
+      const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
+      console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
+    } else {
+      console.log(`📸 Snapshot`);
+    }
+    return snap;
+  }
+
+  const messages: MessageParam[] = [{
+    role: 'user',
+    content: [{ type: 'text', text: initialMessage }, pageStateMessage(await takeSnapshot())],
+  }];
 
   const logFile = `${sessionDir}/conversation.md`;
   await fs.writeFile(logFile, `# ${hostSlug} ${date} ${time}\n\n## System Prompt\n\n${systemPrompt}\n\n`);
@@ -179,25 +201,7 @@ export async function runAgent<T>(
     if (!result) {
       // Take one snapshot after all tools in this turn complete, so Claude sees the
       // cumulative page state rather than intermediate states between tool calls.
-      let snap: string | null = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          snap = await page.locator('body').ariaSnapshot();
-          break;
-        } catch {
-          if (attempt < 2) await new Promise(r => setTimeout(r, 500));
-        }
-      }
-      if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
-      const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
-      await fs.writeFile(snapFile, snap);
-      if (VERBOSE) {
-        const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
-        console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
-      } else {
-        console.log(`📸 Snapshot`);
-      }
-      messages.push({ role: 'user', content: [...toolResults, pageStateMessage(snap)] });
+      messages.push({ role: 'user', content: [...toolResults, pageStateMessage(await takeSnapshot())] });
     } else {
       return result.value;
     }
