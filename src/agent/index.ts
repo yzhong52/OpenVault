@@ -39,6 +39,10 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
+function pageStateMessage(snapshot: string): { type: 'text'; text: string } {
+  return { type: 'text', text: `Current page state:\n${snapshot}` };
+}
+
 function sessionHostSlug(folderName: string): string | null {
   const match = folderName.match(/^(.+)_\d{4}-\d{2}-\d{2}_\d{6}$/);
   return match ? match[1] : null;
@@ -84,7 +88,7 @@ export async function runAgent<T>(
   const initialSnapshot = await page.locator('body').ariaSnapshot();
   const messages: MessageParam[] = [{
     role: 'user',
-    content: `${initialMessage}\n\nCurrent page state:\n${initialSnapshot}`,
+    content: [{ type: 'text', text: initialMessage }, pageStateMessage(initialSnapshot)],
   }];
   const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
   const now = new Date();
@@ -93,22 +97,18 @@ export async function runAgent<T>(
   const sessionDir = `${LOGS_DIR}/${hostSlug}_${date}_${time}`;
   let snapCount = 0;
   await fs.mkdir(sessionDir, { recursive: true });
+  await pruneSessionsForHost(hostSlug);
 
   const logFile = `${sessionDir}/conversation.md`;
   await fs.writeFile(logFile, `# ${hostSlug} ${date} ${time}\n\n## System Prompt\n\n${systemPrompt}\n\n`);
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const lastMsg = messages[messages.length - 1];
-    const userContent = typeof lastMsg.content === 'string'
-      ? lastMsg.content
-      : (lastMsg.content as Array<{ type: string; content?: string; text?: string }>)
-          .filter(r => !(r.type === 'tool_result' && r.content === 'skipped'))
-          .map(r => r.type === 'text' ? (r.text ?? '') : (r.content ?? ''))
-          .join('\n\n');
-    const turnSep = turn > 0 ? '---\n\n' : '';
-    await fs.appendFile(logFile,
-      `${turnSep}## Turn ${turn}\n\n### User → Agent\n\n${userContent}\n\n### Agent → User\n\n`,
-    );
+    if (turn > 0) await fs.appendFile(logFile, '---\n\n');
+    await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
+    await fs.appendFile(logFile, `### User → Agent\n\n`);
+    await fs.appendFile(logFile, `\`\`\`json\n${JSON.stringify(lastMsg.content, null, 2)}\n\`\`\`\n\n`);
+    await fs.appendFile(logFile, `### Agent → User\n\n`);
 
     const response = await getClient().messages.create({
       model: MODEL,
@@ -119,11 +119,7 @@ export async function runAgent<T>(
       messages,
     });
 
-    const toolCallLog = response.content
-      .filter((b): b is ToolUseBlock => b.type === 'tool_use')
-      .map(t => `**→ ${t.name}** \`${JSON.stringify(t.input)}\``)
-      .join('\n\n');
-    await fs.appendFile(logFile, `${toolCallLog}\n\n`);
+    await fs.appendFile(logFile, `\`\`\`json\n${JSON.stringify(response.content, null, 2)}\n\`\`\`\n\n`);
 
     messages.push({ role: 'assistant', content: response.content });
 
@@ -180,7 +176,6 @@ export async function runAgent<T>(
       }
     }
 
-    let msgContent: MessageParam['content'] = toolResults;
     if (!result) {
       // Take one snapshot after all tools in this turn complete, so Claude sees the
       // cumulative page state rather than intermediate states between tool calls.
@@ -196,26 +191,16 @@ export async function runAgent<T>(
       if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
       const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
       await fs.writeFile(snapFile, snap);
-      await pruneSessionsForHost(hostSlug);
       if (VERBOSE) {
         const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
         console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
       } else {
         console.log(`📸 Snapshot`);
       }
-      msgContent = [...toolResults, { type: 'text' as const, text: `Current page state:\n${snap}` }];
+      messages.push({ role: 'user', content: [...toolResults, pageStateMessage(snap)] });
+    } else {
+      return result.value;
     }
-
-    const toolNameById = new Map(toolUses.map(t => [t.id, t.name]));
-    const resultsLog = toolResults
-      .filter(r => r.content !== 'skipped')
-      .map(r => `**← ${toolNameById.get(r.tool_use_id) ?? r.tool_use_id}:** ${r.content}`)
-      .join('\n\n');
-    if (resultsLog) await fs.appendFile(logFile, `${resultsLog}\n\n`);
-
-    messages.push({ role: 'user', content: msgContent });
-
-    if (result) return result.value;
   }
 
   throw new Error(`agent did not complete within ${MAX_TURNS} turns`);
