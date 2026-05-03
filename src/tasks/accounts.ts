@@ -67,7 +67,9 @@ Steps:
 Do not navigate away from the dashboard. Do not click login/logout links.${formatMemoryForPrompt(notes, 'accounts')}`;
 }
 
-export async function exploreAccounts(page: Page, institutionName: string): Promise<Account[]> {
+export async function exploreAccounts(
+  page: Page, institutionName: string, sessionDir: string,
+): Promise<Account[]> {
   console.log('🤖 Exploring accounts...');
 
   const [notes, pageCache] = await Promise.all([
@@ -109,6 +111,8 @@ export async function exploreAccounts(page: Page, institutionName: string): Prom
 
         return executeBrowserTool(name, input, pg);
       },
+      sessionDir,
+      'conversation_accounts',
       pageCache,
     );
   } finally {

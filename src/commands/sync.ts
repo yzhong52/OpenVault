@@ -1,12 +1,11 @@
-import * as fs from 'fs/promises';
 import { Command } from 'commander';
-import { chromium } from 'playwright';
 import { login } from '../tasks/login';
 import { exploreAccounts } from '../tasks/accounts';
+import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
 import { saveSync } from '../db/storage';
-import { prompt, readInstitutions, printAccountsTable, PROFILE_DIR } from './utils';
+import { prompt, readInstitutions, printAccountsTable, launchBrowser } from './utils';
 
 export function makeSyncCommand(): Command {
   return new Command('sync')
@@ -34,14 +33,8 @@ export function makeSyncCommand(): Command {
         return;
       }
 
-      await fs.mkdir(PROFILE_DIR, { recursive: true });
-
       const { db, close } = openDb();
-      const context = await chromium.launchPersistentContext(PROFILE_DIR, {
-        headless: false,
-        channel: 'chrome',
-        args: ['--disable-blink-features=AutomationControlled'],
-      });
+      const context = await launchBrowser();
 
       try {
         const page = context.pages()[0] ?? await context.newPage();
@@ -56,9 +49,10 @@ export function makeSyncCommand(): Command {
           }
 
           console.log(`\n🤖 Syncing ${inst.name}...`);
-          await login(page, inst.url, { username: inst.username, password }, inst.name);
+          const sessionDir = await createSession(inst.url);
+          await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
 
-          const accounts = await exploreAccounts(page, inst.name);
+          const accounts = await exploreAccounts(page, inst.name, sessionDir);
           saveSync(db, inst.name, inst.url, accounts);
 
           console.log(`\n${inst.name} accounts:`);

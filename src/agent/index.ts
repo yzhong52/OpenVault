@@ -4,6 +4,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
 import { normalizeSnapshot } from './utils/normalizeSnapshot';
 import { PageCache } from './cache';
@@ -14,13 +15,9 @@ export { PageCache, SUCCESS_TOOL };
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
-export const DEBUG = process.env.DEBUG === '1';
-export const VERBOSE = process.env.VERBOSE === '1' || DEBUG;
+export const VERBOSE = process.env.VERBOSE === '1';
 const MAX_SESSIONS_PER_HOST = 10;
 
-export function debug(...args: unknown[]): void {
-  if (DEBUG) console.log(...args);
-}
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -48,6 +45,10 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
+function pageStateMessage(snapshot: string): { type: 'text'; text: string } {
+  return { type: 'text', text: `Current page state:\n${snapshot}` };
+}
+
 function sessionHostSlug(folderName: string): string | null {
   const match = folderName.match(/^(.+)_\d{4}-\d{2}-\d{2}_\d{6}$/);
   return match ? match[1] : null;
@@ -66,9 +67,30 @@ async function pruneSessionsForHost(hostSlug: string): Promise<void> {
   }
 }
 
+export async function createSession(url: string): Promise<string> {
+  const hostSlug = new URL(url).hostname.replace(/\./g, '_');
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
+  const sessionDir = `${LOGS_DIR}/${hostSlug}_${date}_${time}`;
+  await fs.mkdir(sessionDir, { recursive: true });
+  await pruneSessionsForHost(hostSlug);
+  return sessionDir;
+}
+
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
-// onTool returns either a plain string (tool result fed back to Claude) or
-// toolDone(value) to signal completion and carry the final value out of the loop.
+//
+// systemPrompt: persistent instructions passed via the `system` API parameter, visible on every
+//   turn but outside the conversation history. Holds task description, credentials, memory notes.
+//   Example: "You are a browser agent. Log in using Username: foo Password: bar. Call success()
+//   once the dashboard is visible."
+//
+// initialMessage: the first user-role message that starts the conversation, combined internally
+//   with the initial ARIA snapshot of the page.
+//   Example: "The browser has navigated to the login page."
+//
+// onTool: called for each tool use Claude returns. Return a plain string to feed the result back
+//   to Claude, or toolDone(value) to signal completion and carry the final value out of the loop.
 export async function runAgent<T>(
   page: Page,
   tools: Tool[],
@@ -79,32 +101,66 @@ export async function runAgent<T>(
     input: Record<string, unknown>,
     page: Page,
   ) => Promise<string | ToolDone<T>>,
+  sessionDir: string,
+  logName: string,
   pageCache?: PageCache,
 ): Promise<T> {
-  const initialSnapshot = await page.locator('body').ariaSnapshot();
+  let snapCount = 0;
+
+  async function takeSnapshot(): Promise<string> {
+    // Wait for the page to settle before snapshotting. Without this, a snapshot taken
+    // immediately after a click (e.g. clicking Log In) captures the pre-navigation DOM
+    // because domcontentloaded fires before the new page finishes rendering — causing the
+    // agent to see the login page again and incorrectly infer that MFA is needed.
+    // Timeout is intentionally short; if the page stays "busy" we snapshot anyway.
+    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+    let snap: string | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        snap = await page.locator('body').ariaSnapshot();
+        break;
+      } catch {
+        if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
+    const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+    await fs.writeFile(snapFile, snap);
+    if (VERBOSE) {
+      const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
+      console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
+    } else {
+      console.log(`📸 Snapshot`);
+    }
+    return snap;
+  }
+
+  const initialSnapshot = await takeSnapshot();
   const messages: MessageParam[] = [{
     role: 'user',
-    content: `${initialMessage}\n\nCurrent page state:\n${initialSnapshot}`,
+    content: [{ type: 'text', text: initialMessage }, pageStateMessage(initialSnapshot)],
   }];
-  const hostSlug = new URL(page.url()).hostname.replace(/\./g, '_');
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
-  const sessionDir = `${LOGS_DIR}/${hostSlug}_${date}_${time}`;
-  let snapCount = 0;
-  await fs.mkdir(sessionDir, { recursive: true });
 
-  // Snapshot pending for the next cache check. Seeded from initialSnapshot so
-  // turn-1 can hit the cache without waiting for an explicit snapshot tool call.
+  const logFile = `${sessionDir}/${logName}.md`;
+  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${systemPrompt}\n\n`);
+
+  // Seed pendingSnapshot from the initial snapshot so turn-1 can hit the cache
+  // without waiting for an explicit snapshot tool call.
   let pendingSnapshot: string | null = initialSnapshot;
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const lastMsg = messages[messages.length - 1];
+    if (turn > 0) await fs.appendFile(logFile, '---\n\n');
+    await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
+    await fs.appendFile(logFile, `### User → Agent\n\n`);
+    await fs.appendFile(logFile, `\`\`\`json\n${JSON.stringify(lastMsg.content, null, 2)}\n\`\`\`\n\n`);
+    await fs.appendFile(logFile, `### Agent → User\n\n`);
+
     // Save snapshot reference before resetting, so replay-failure tracking
     // can reference the same value that was used for the cache lookup.
     const snapshotForCache = pendingSnapshot;
     pendingSnapshot = null;
 
-    // --- Cache check / API call ---
     const cachedActions = pageCache && snapshotForCache !== null
       ? pageCache.check(snapshotForCache)
       : null;
@@ -120,10 +176,6 @@ export async function runAgent<T>(
       }));
       console.log(`⚡ Replay: ${cachedActions.map(a => a.name).join(', ')}`);
     } else {
-      debug('\n── prompt to claude ──────────────────────────────');
-      debug(JSON.stringify(messages[messages.length - 1], null, 2));
-      debug('──────────────────────────────────────────────────\n');
-
       const response = await getClient().messages.create({
         model: MODEL,
         max_tokens: 1024,
@@ -134,7 +186,6 @@ export async function runAgent<T>(
         tool_choice: { type: 'any' },
         messages,
       });
-
       assistantContent = response.content;
 
       // Record all tools Claude chose, keyed by the snapshot that prompted them.
@@ -145,6 +196,8 @@ export async function runAgent<T>(
         if (toolUses.length > 0) pageCache.record(snapshotForCache, toolUses);
       }
     }
+
+    await fs.appendFile(logFile, `\`\`\`json\n${JSON.stringify(assistantContent, null, 2)}\n\`\`\`\n\n`);
 
     messages.push({ role: 'assistant', content: assistantContent });
 
@@ -181,6 +234,7 @@ export async function runAgent<T>(
             } else {
               console.log(`🔧 ${preview}`);
             }
+            toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
           }
         } catch (err) {
           output = `error: ${err instanceof Error ? err.message : String(err)}`;
@@ -193,43 +247,6 @@ export async function runAgent<T>(
             const errorType = err instanceof Error ? err.constructor.name : String(err);
             console.log(`❌ ${errorType}`);
           }
-        }
-
-        if (!result) {
-          // Automatically append current page state so Claude always has fresh context
-          // without needing to call snapshot explicitly.
-          let snap: string | null = null;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              snap = await page.locator('body').ariaSnapshot();
-              break;
-            } catch {
-              if (attempt < 2) await new Promise(r => setTimeout(r, 500));
-            }
-          }
-          if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
-          const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
-          await fs.writeFile(snapFile, snap);
-          await pruneSessionsForHost(hostSlug);
-          if (VERBOSE) {
-            const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
-            console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
-          } else {
-            console.log(`📸 Snapshot`);
-          }
-
-          // Update pendingSnapshot for the next turn's cache check.
-          // Invalidate if the action was a no-op (page structure didn't change).
-          if (snapshotForCache !== null
-              && normalizeSnapshot(snap) === normalizeSnapshot(snapshotForCache)) {
-            pageCache?.failSnapshot(snapshotForCache);
-          } else {
-            pendingSnapshot = snap;
-          }
-
-          output += `\n\nCurrent page state:\n${snap}`;
-
-          if (DEBUG) await new Promise(resolve => setTimeout(resolve, 1000));
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
         }
       } else {
@@ -246,9 +263,17 @@ export async function runAgent<T>(
       console.log('⚡ Replay failed — falling back to Claude');
     }
 
-    messages.push({ role: 'user', content: toolResults });
-
-    if (result) {
+    if (!result) {
+      const snap = await takeSnapshot();
+      // Invalidate cache if the action was a no-op (page structure didn't change).
+      if (snapshotForCache !== null
+          && normalizeSnapshot(snap) === normalizeSnapshot(snapshotForCache)) {
+        pageCache?.failSnapshot(snapshotForCache);
+      } else {
+        pendingSnapshot = snap;
+      }
+      messages.push({ role: 'user', content: [...toolResults, pageStateMessage(snap)] });
+    } else {
       await pageCache?.flush();
       return result.value;
     }

@@ -68,7 +68,7 @@ Do not navigate away from the institution's site. Do not click login/logout link
 
 // TODO: implement fetchTransactions and integrate it into the sync pipeline (src/commands/sync.ts)
 export async function fetchTransactions(
-  page: Page, institutionName: string,
+  page: Page, institutionName: string, sessionDir: string,
 ): Promise<Transaction[]> {
   console.log('🤖 fetching transactions...');
 
@@ -111,6 +111,8 @@ export async function fetchTransactions(
 
         return executeBrowserTool(name, input, pg);
       },
+      sessionDir,
+      'conversation_transactions',
       pageCache,
     );
   } finally {

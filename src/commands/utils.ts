@@ -1,6 +1,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as readline from 'readline';
+import { chromium } from 'playwright';
+import type { BrowserContext } from 'playwright';
 import { DATA_DIR } from '../db';
 
 export interface Institution {
@@ -12,6 +14,15 @@ export interface Institution {
 export const INSTITUTIONS_FILE = path.join(DATA_DIR, 'institutions.json');
 export const PROFILE_DIR =
   process.env.OPENVAULT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
+
+export async function launchBrowser(): Promise<BrowserContext> {
+  await fs.mkdir(PROFILE_DIR, { recursive: true });
+  return chromium.launchPersistentContext(PROFILE_DIR, {
+    headless: false,
+    channel: 'chrome',
+    args: ['--disable-blink-features=AutomationControlled'],
+  });
+}
 
 export async function readInstitutions(): Promise<Institution[]> {
   try {

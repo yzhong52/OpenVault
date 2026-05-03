@@ -95,7 +95,7 @@ const TRACKED_TOOLS = new Set<string>([
 ]);
 
 export async function login(
-  page: Page, url: string, creds: Credentials, institutionName: string,
+  page: Page, url: string, creds: Credentials, institutionName: string, sessionDir: string,
 ): Promise<void> {
   const loginStartedAt = new Date();
   const [notes, pageCache] = await Promise.all([
@@ -156,6 +156,8 @@ export async function login(
             return executeBrowserTool(name, input, pg);
         }
       },
+      sessionDir,
+      'conversation_login',
       pageCache,
     );
   } finally {
