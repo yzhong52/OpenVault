@@ -19,16 +19,17 @@ export const SUCCESS_TOOL = 'success';
 
 export const LOGIN_TOOL = {
   // FILL / TYPE: for non-credential fields (e.g. OTP codes, search boxes).
-  // FILL_CREDENTIAL / TYPE_CREDENTIAL: same mechanics, but for username/password —
-  //   the model specifies the field location only; the executor injects the value locally
-  //   so credentials are never sent to the model.
+  // FILL_USERNAME / FILL_PASSWORD / TYPE_USERNAME / TYPE_PASSWORD: same mechanics, but the
+  //   executor injects the credential value locally so it is never sent to the model.
   // FILL* uses Playwright fill() (sets value directly, no key events).
   // TYPE* uses pressSequentially() (fires keydown/keyup/input per character — required for
   //   SPA fields that gate the submit button on real keystroke events).
   FILL:             'fill',
   TYPE:             'type',
-  FILL_CREDENTIAL:  'fill_credential',
-  TYPE_CREDENTIAL:  'type_credential',
+  FILL_USERNAME:    'fill_username',
+  FILL_PASSWORD:    'fill_password',
+  TYPE_USERNAME:    'type_username',
+  TYPE_PASSWORD:    'type_password',
   REQUEST_MFA_CODE: 'request_mfa_code',
   SUCCESS:          SUCCESS_TOOL,
 } as const;
@@ -53,6 +54,8 @@ export const STATE_CHANGING_TOOLS = new Set<string>([
   BROWSER_TOOL.PRESS_ENTER,
   LOGIN_TOOL.FILL,
   LOGIN_TOOL.TYPE,
-  LOGIN_TOOL.FILL_CREDENTIAL,
-  LOGIN_TOOL.TYPE_CREDENTIAL,
+  LOGIN_TOOL.FILL_USERNAME,
+  LOGIN_TOOL.FILL_PASSWORD,
+  LOGIN_TOOL.TYPE_USERNAME,
+  LOGIN_TOOL.TYPE_PASSWORD,
 ]);

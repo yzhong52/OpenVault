@@ -21,9 +21,8 @@ You are a browser automation agent. Your job is to log into a financial institut
 
 Login flow:
   1. The current page state is already provided — use it to identify the login form fields.
-  2. Use fill_credential to enter the username and fill_credential (or type_credential for
-     fields that require key events) to enter the password, then submit the form.
-     Pass credential="username" or credential="password" — never type the actual values yourself.
+  2. Use fill_username to enter the username and fill_password (or type_password for fields
+     that require key events) to enter the password, then submit the form.
   3. If a multi-factor authentication (MFA) or verification code screen appears,
      call request_mfa_code with a short description of what the user should do.
      The tool returns the code — use the type tool (not fill) to enter it, then submit.
@@ -36,36 +35,39 @@ After each action, the updated page state is provided automatically.${formatMemo
 }
 
 
+const credFieldSchema = {
+  type: 'object' as const,
+  properties: {
+    role: { type: 'string', description: 'ARIA role, e.g. textbox, combobox' },
+    name: { type: 'string', description: 'Accessible name of the field (label text)' },
+  },
+  required: ['role', 'name'],
+};
+
 const LOGIN_TOOLS: Tool[] = [
   {
-    name: LOGIN_TOOL.FILL_CREDENTIAL,
-    description: 'Fill a login credential field. The actual value is injected locally and never sent to this model. Use credential="username" for the username/email field and credential="password" for the password field.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        role:       { type: 'string', description: 'ARIA role, e.g. textbox, combobox' },
-        name:       { type: 'string', description: 'Accessible name of the field (label text)' },
-        credential: { type: 'string', enum: ['username', 'password'] },
-      },
-      required: ['role', 'name', 'credential'],
-    },
+    name: LOGIN_TOOL.FILL_USERNAME,
+    description: 'Fill the username or email field. The actual value is injected locally and never sent to this model.',
+    input_schema: credFieldSchema,
   },
   {
-    name: LOGIN_TOOL.TYPE_CREDENTIAL,
-    description: 'Type a login credential character-by-character, firing real key events. Use for fields in SPAs where key events are required to enable the submit button. The actual value is injected locally and never sent to this model.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        role:       { type: 'string' },
-        name:       { type: 'string' },
-        credential: { type: 'string', enum: ['username', 'password'] },
-      },
-      required: ['role', 'name', 'credential'],
-    },
+    name: LOGIN_TOOL.FILL_PASSWORD,
+    description: 'Fill the password field. The actual value is injected locally and never sent to this model.',
+    input_schema: credFieldSchema,
+  },
+  {
+    name: LOGIN_TOOL.TYPE_USERNAME,
+    description: 'Type the username character-by-character, firing real key events. Use when key events are required to enable the submit button. The actual value is injected locally and never sent to this model.',
+    input_schema: credFieldSchema,
+  },
+  {
+    name: LOGIN_TOOL.TYPE_PASSWORD,
+    description: 'Type the password character-by-character, firing real key events. Use when key events are required to enable the submit button. The actual value is injected locally and never sent to this model.',
+    input_schema: credFieldSchema,
   },
   {
     name: LOGIN_TOOL.FILL,
-    description: 'Fill a non-credential form field identified by its ARIA role and accessible name. Do not use this for username or password — use fill_credential instead.',
+    description: 'Fill a non-credential form field identified by its ARIA role and accessible name. Do not use this for username or password.',
     input_schema: {
       type: 'object',
       properties: {
@@ -78,7 +80,7 @@ const LOGIN_TOOLS: Tool[] = [
   },
   {
     name: LOGIN_TOOL.TYPE,
-    description: 'Type text into a non-credential field character-by-character, firing real key events. Use for OTP / verification code fields where key events are required to enable the submit button. Do not use this for username or password — use type_credential instead.',
+    description: 'Type text into a non-credential field character-by-character, firing real key events. Use for OTP / verification code fields where key events are required to enable the submit button. Do not use this for username or password.',
     input_schema: {
       type: 'object',
       properties: {
@@ -141,18 +143,22 @@ export async function login(
       'The browser has navigated to the login page.',
       async (name, input, pg) => {
         switch (name) {
-          case LOGIN_TOOL.FILL_CREDENTIAL: {
-            const value = creds[input.credential as 'username' | 'password'];
-            await byRole(pg, input).fill(value, { timeout: 5000 });
-            track(`fill_credential(${input.role} "${input.name}", ${input.credential})`, 'success');
-            return `filled ${input.role} "${input.name}" with ${input.credential as string}`;
-          }
-          case LOGIN_TOOL.TYPE_CREDENTIAL: {
-            const value = creds[input.credential as 'username' | 'password'];
-            await byRole(pg, input).pressSequentially(value, { timeout: 5000 });
-            track(`type_credential(${input.role} "${input.name}", ${input.credential})`, 'success');
-            return `typed ${input.credential as string} into ${input.role} "${input.name}"`;
-          }
+          case LOGIN_TOOL.FILL_USERNAME:
+            await byRole(pg, input).fill(creds.username, { timeout: 5000 });
+            track(`fill_username(${input.role} "${input.name}")`, 'success');
+            return `filled ${input.role} "${input.name}" with username`;
+          case LOGIN_TOOL.FILL_PASSWORD:
+            await byRole(pg, input).fill(creds.password, { timeout: 5000 });
+            track(`fill_password(${input.role} "${input.name}")`, 'success');
+            return `filled ${input.role} "${input.name}" with password`;
+          case LOGIN_TOOL.TYPE_USERNAME:
+            await byRole(pg, input).pressSequentially(creds.username, { timeout: 5000 });
+            track(`type_username(${input.role} "${input.name}")`, 'success');
+            return `typed username into ${input.role} "${input.name}"`;
+          case LOGIN_TOOL.TYPE_PASSWORD:
+            await byRole(pg, input).pressSequentially(creds.password, { timeout: 5000 });
+            track(`type_password(${input.role} "${input.name}")`, 'success');
+            return `typed password into ${input.role} "${input.name}"`;
           case LOGIN_TOOL.FILL:
             await byRole(pg, input).fill(input.value as string, { timeout: 5000 });
             track(`fill(${input.role} "${input.name}")`, 'success');
