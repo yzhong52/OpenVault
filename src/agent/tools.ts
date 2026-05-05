@@ -18,8 +18,17 @@ export const BROWSER_TOOL = {
 export const SUCCESS_TOOL = 'success';
 
 export const LOGIN_TOOL = {
+  // FILL / TYPE: for non-credential fields (e.g. OTP codes, search boxes).
+  // FILL_CREDENTIAL / TYPE_CREDENTIAL: same mechanics, but for username/password —
+  //   the model specifies the field location only; the executor injects the value locally
+  //   so credentials are never sent to the model.
+  // FILL* uses Playwright fill() (sets value directly, no key events).
+  // TYPE* uses pressSequentially() (fires keydown/keyup/input per character — required for
+  //   SPA fields that gate the submit button on real keystroke events).
   FILL:             'fill',
   TYPE:             'type',
+  FILL_CREDENTIAL:  'fill_credential',
+  TYPE_CREDENTIAL:  'type_credential',
   REQUEST_MFA_CODE: 'request_mfa_code',
   SUCCESS:          SUCCESS_TOOL,
 } as const;
@@ -36,7 +45,14 @@ export const TRANSACTION_TOOL = {
  *  after each one so the cache can fingerprint the result without waiting for Claude
  *  to explicitly call the snapshot tool. */
 export const STATE_CHANGING_TOOLS = new Set<string>([
-  BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
-  BROWSER_TOOL.CLICK_JS, BROWSER_TOOL.FILL_JS, BROWSER_TOOL.PRESS_ENTER,
-  LOGIN_TOOL.FILL, LOGIN_TOOL.TYPE,
+  BROWSER_TOOL.CLICK,
+  BROWSER_TOOL.CLICK_TESTID,
+  BROWSER_TOOL.CLICK_TEXT,
+  BROWSER_TOOL.CLICK_JS,
+  BROWSER_TOOL.FILL_JS,
+  BROWSER_TOOL.PRESS_ENTER,
+  LOGIN_TOOL.FILL,
+  LOGIN_TOOL.TYPE,
+  LOGIN_TOOL.FILL_CREDENTIAL,
+  LOGIN_TOOL.TYPE_CREDENTIAL,
 ]);

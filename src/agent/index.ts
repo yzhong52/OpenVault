@@ -76,8 +76,8 @@ export async function createSession(url: string): Promise<string> {
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
 //
 // systemPrompt: persistent instructions passed via the `system` API parameter, visible on every
-//   turn but outside the conversation history. Holds task description, credentials, memory notes.
-//   Example: "You are a browser agent. Log in using Username: foo Password: bar. Call success()
+//   turn but outside the conversation history. Holds task description and memory notes.
+//   Example: "You are a browser agent. Use fill_credential to fill in credentials. Call success()
 //   once the dashboard is visible."
 //
 // initialMessage: the first user-role message that starts the conversation, combined internally
@@ -86,6 +86,9 @@ export async function createSession(url: string): Promise<string> {
 //
 // onTool: called for each tool use Claude returns. Return a plain string to feed the result back
 //   to Claude, or toolDone(value) to signal completion and carry the final value out of the loop.
+//
+// logSystemPrompt: if provided, written to the log file instead of systemPrompt. Use this to
+//   pass a redacted version when systemPrompt contains sensitive values.
 export async function runAgent<T>(
   page: Page,
   tools: Tool[],
@@ -98,6 +101,7 @@ export async function runAgent<T>(
   ) => Promise<string | ToolDone<T>>,
   sessionDir: string,
   logName: string,
+  logSystemPrompt?: string,
 ): Promise<T> {
   let snapCount = 0;
 
@@ -135,7 +139,7 @@ export async function runAgent<T>(
   }];
 
   const logFile = `${sessionDir}/${logName}.md`;
-  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${systemPrompt}\n\n`);
+  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${logSystemPrompt ?? systemPrompt}\n\n`);
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const lastMsg = messages[messages.length - 1];
