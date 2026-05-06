@@ -56,6 +56,12 @@ export function prompt(question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans); }));
 }
 
+export function formatCents(cents: number): string {
+  const abs = Math.abs(cents) / 100;
+  const formatted = abs.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return cents < 0 ? `-$${formatted}` : `$${formatted}`;
+}
+
 export interface AccountEntry {
   institution?: string;
   account: string;

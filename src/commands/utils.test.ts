@@ -11,18 +11,24 @@ describe('printAccountsTable', () => {
 
   it('prefixes foreign currency in the balance column and omits a separate currency column', () => {
     printAccountsTable([
-      { institution: 'TD',          account: 'Chequing',              type: 'Chequing', balance: '$26,726.27' },
-      { institution: 'TD',          account: 'US Dollar Savings',     type: 'Savings',  balance: '$0.00', currency: 'USD' },
-      { institution: 'Wealthsimple', account: 'TFSA',                 type: 'TFSA',     balance: '$38,774.98' },
+      { institution: 'Bank A',  account: 'Chequing',          type: 'Chequing', balance: '$1,234.56' },
+      { institution: 'Bank A',  account: 'US Dollar Savings', type: 'Savings',  balance: '$100.00', currency: 'USD' },
+      { institution: 'Bank A',  account: 'Credit Card',       type: 'Credit',   balance: '-$42.00' },
+      { institution: 'Bank A',  account: 'USD Credit Card',   type: 'Credit',   balance: '-$10.00', currency: 'USD' },
+      { institution: 'Bank B',  account: 'CAD Savings',       type: 'Savings',  balance: '$500.00', currency: 'CAD' },
+      { institution: 'Bank B',  account: 'TFSA',              type: 'TFSA',     balance: '$9,999.99' },
     ], false);
 
     expect(output.join('\n')).toMatchInlineSnapshot(`
       "
-        Institution   Account            Type         Balance
-        ------------  -----------------  --------  ----------
-        TD            Chequing           Chequing  $26,726.27
-        TD            US Dollar Savings  Savings    USD $0.00
-        Wealthsimple  TFSA               TFSA      $38,774.98
+        Institution  Account            Type          Balance
+        -----------  -----------------  --------  -----------
+        Bank A       Chequing           Chequing    $1,234.56
+        Bank A       US Dollar Savings  Savings   USD $100.00
+        Bank A       Credit Card        Credit        -$42.00
+        Bank A       USD Credit Card    Credit    USD -$10.00
+        Bank B       CAD Savings        Savings   CAD $500.00
+        Bank B       TFSA               TFSA        $9,999.99
       "
     `);
   });
