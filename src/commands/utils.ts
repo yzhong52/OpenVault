@@ -62,7 +62,25 @@ export interface AccountEntry {
   balance: string;
 }
 
-export function printAccountsTable(entries: AccountEntry[]): void {
+function randomBalance(): string {
+  const amount = Math.random() * 149500 + 500;
+  return `$${amount.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function randomizeDigits(s: string): string {
+  return s.replace(/\d+/g, digits => Array.from(digits, () => Math.floor(Math.random() * 10)).join(''));
+}
+
+function applyDemo(entry: AccountEntry): AccountEntry {
+  return {
+    ...entry,
+    account: randomizeDigits(entry.account),
+    balance: entry.balance === '—' ? '—' : randomBalance(),
+  };
+}
+
+export function printAccountsTable(entries: AccountEntry[], opts: { demo?: boolean } = {}): void {
+  if (opts.demo) entries = entries.map(applyDemo);
   const showInstitution = entries.some(e => e.institution != null);
   const headers = { account: 'Account', type: 'Type', balance: 'Balance' };
 
