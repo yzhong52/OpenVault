@@ -64,6 +64,8 @@ export function makeSyncCommand(): Command {
             balance:  a.balance ?? '—',
           })), opts.demo);
         }
+      } catch (err) {
+        console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         close();
         await prompt('\nPress Enter to close... ');
