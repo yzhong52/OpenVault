@@ -41,22 +41,45 @@ async function discoverExtensionDirs(dir: string): Promise<string[]> {
 
 export async function launchBrowser(): Promise<BrowserContext> {
   await fs.mkdir(PROFILE_DIR, { recursive: true });
-  const extensionDir = path.join(DATA_DIR, 'brower-extensions');
+  const extensionDir = path.join(DATA_DIR, 'browser-extensions');
   await fs.mkdir(extensionDir, { recursive: true });
   const extensions = await discoverExtensionDirs(extensionDir);
   const args = ['--disable-blink-features=AutomationControlled'];
-  if (extensions.length > 0) {
+  console.log(`DEBUG: discovered extensions: ${extensions.length}`);
+
+  // Only load unpacked extensions into a fresh profile. Once an extension is
+  // present in the profile (installed), loading it again each run can produce
+  // a new ephemeral extension ID and cause extension state (storage) to be
+  // isolated per-run. If the profile already contains installed extensions,
+  // let Chromium use them from the profile.
+  let shouldLoadExtensions = false;
+  try {
+    const extDir = path.join(PROFILE_DIR, 'Default', 'Extensions');
+    const extEntries = await fs.readdir(extDir).catch(() => []);
+    console.log(`DEBUG: profile extensions dir ${extDir} entries=${extEntries.length}`);
+    shouldLoadExtensions = extEntries.length === 0 && extensions.length > 0;
+  } catch {
+    console.log('DEBUG: profile extensions dir not accessible, will consider loading extensions into profile');
+    shouldLoadExtensions = extensions.length > 0;
+  }
+
+  if (shouldLoadExtensions) {
+    console.log('DEBUG: will load unpacked extensions into profile');
     const extensionList = extensions.join(',');
-    args.push(`--disable-extensions-except=${extensionList}`);
+    // Do NOT pass --disable-extensions-except, as that prevents Chrome from
+    // installing any new extensions from the Web Store (it causes "Installation Not Enabled")
     args.push(`--load-extension=${extensionList}`);
   }
+  console.log(`DEBUG: chromium args: ${args.join(' ')}`);
 
   return chromium.launchPersistentContext(PROFILE_DIR, {
     headless: false,
-    channel: 'chromium',
+    channel: 'chrome',
     args,
-    // Playwright disables extensions by default; remove that flag when loading ours.
-    ignoreDefaultArgs: extensions.length > 0 ? ['--disable-extensions'] : undefined,
+    // Playwright disables extensions by default; always remove that flag so extensions
+    // already installed in the persistent profile also load correctly.
+    // Also ignore --enable-automation so the Chrome Web Store allows installations.
+    ignoreDefaultArgs: ['--disable-extensions', '--enable-automation'],
   });
 }
 
