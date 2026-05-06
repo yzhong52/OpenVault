@@ -16,7 +16,7 @@ export function makeSyncCommand(): Command {
     )
     .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
     .option('--demo', 'Hide sensitive data by randomizing balances and account numbers')
-    .action(async (opts: { institution?: string; verbose?: boolean; demo?: boolean }) => {
+    .action(async (opts: { institution: string | undefined; verbose: boolean; demo: boolean }) => {
       if (opts.verbose) process.env.VERBOSE = '1';
       let institutions = await readInstitutions();
       if (opts.institution) {
@@ -61,7 +61,7 @@ export function makeSyncCommand(): Command {
             account: a.name,
             type:    a.type ?? '—',
             balance: a.balance ?? '—',
-          })), { demo: opts.demo });
+          })), opts.demo);
         }
       } finally {
         close();

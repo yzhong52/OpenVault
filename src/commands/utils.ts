@@ -4,6 +4,7 @@ import * as readline from 'readline';
 import { chromium } from 'playwright';
 import type { BrowserContext } from 'playwright';
 import { DATA_DIR } from '../db';
+import { applyDemo } from './demo_utils';
 
 export interface Institution {
   name: string;
@@ -62,25 +63,8 @@ export interface AccountEntry {
   balance: string;
 }
 
-function randomBalance(): string {
-  const amount = Math.random() * 149500 + 500;
-  return `$${amount.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function randomizeDigits(s: string): string {
-  return s.replace(/\d+/g, digits => Array.from(digits, () => Math.floor(Math.random() * 10)).join(''));
-}
-
-function applyDemo(entry: AccountEntry): AccountEntry {
-  return {
-    ...entry,
-    account: randomizeDigits(entry.account),
-    balance: entry.balance === '—' ? '—' : randomBalance(),
-  };
-}
-
-export function printAccountsTable(entries: AccountEntry[], opts: { demo?: boolean } = {}): void {
-  if (opts.demo) entries = entries.map(applyDemo);
+export function printAccountsTable(entries: AccountEntry[], demo: boolean): void {
+  if (demo) entries = entries.map(applyDemo);
   const showInstitution = entries.some(e => e.institution != null);
   const headers = { account: 'Account', type: 'Type', balance: 'Balance' };
 
