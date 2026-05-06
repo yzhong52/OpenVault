@@ -17,10 +17,17 @@ export const PROFILE_DIR =
 
 export async function launchBrowser(): Promise<BrowserContext> {
   await fs.mkdir(PROFILE_DIR, { recursive: true });
+
+  // Prevents financial institution firewalls (e.g., Cloudflare, Akamai) from instantly
+  // blocking the session. This flag suppresses `navigator.webdriver` and other internal
+  // Blink-engine automation signals used for bot detection.
+  // See: https://developer.chrome.com/docs/chromedriver/security-considerations
   const args = ['--disable-blink-features=AutomationControlled'];
 
   return chromium.launchPersistentContext(PROFILE_DIR, {
     headless: false,
+    // Use official Google Chrome rather than Chromium so the Chrome Web Store
+    // recognizes the browser and enables the "Add to Chrome" button.
     channel: 'chrome',
     args,
     // Playwright disables extensions by default; always remove that flag so extensions
