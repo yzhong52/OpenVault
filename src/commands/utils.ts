@@ -23,20 +23,18 @@ export async function launchBrowser(): Promise<BrowserContext> {
   // blocking the session. This flag suppresses `navigator.webdriver` and other internal
   // Blink-engine automation signals used for bot detection.
   // See: https://developer.chrome.com/docs/chromedriver/security-considerations
-  const args = [
-    '--disable-blink-features=AutomationControlled'
-  ];
+  const args = ['--disable-blink-features=AutomationControlled'];
 
   return chromium.launchPersistentContext(PROFILE_DIR, {
     headless: false,
     // Use official Google Chrome rather than Chromium so the Chrome Web Store
     // recognizes the browser and enables the "Add to Chrome" button.
-    channel: 'chromium',
+    channel: 'chrome',
     args,
     // Playwright disables extensions by default; always remove that flag so extensions
     // already installed in the persistent profile also load correctly.
     // Also ignore --enable-automation so the Chrome Web Store allows installations.
-    ignoreDefaultArgs: ['--disable-extensions', '--enable-automation', '--no-sandbox'],
+    ignoreDefaultArgs: ['--disable-extensions', '--enable-automation'],
   });
 }
 
@@ -69,49 +67,46 @@ export interface AccountEntry {
 export function printAccountsTable(entries: AccountEntry[], demo: boolean): void {
   if (demo) entries = entries.map(applyDemo);
   const showInstitution = entries.some(e => e.institution != null);
-  const showCurrency = entries.some(e => e.currency != null);
-  const headers = { account: 'Account', type: 'Type', currency: 'Currency', balance: 'Balance' };
+  const headers = { account: 'Account', type: 'Type', balance: 'Balance' };
 
-  const width = (key: 'institution' | 'account' | 'type' | 'currency' | 'balance') =>
+  const formatted = entries.map(e => ({
+    ...e,
+    balance: e.currency && e.balance !== '—' ? `${e.currency} ${e.balance}` : e.balance,
+  }));
+
+  const width = (key: 'institution' | 'account' | 'type' | 'balance') =>
     Math.max(
       key === 'institution' ? 'Institution'.length : headers[key as keyof typeof headers].length,
-      ...entries.map(e => (e[key] ?? '').length),
+      ...formatted.map(e => (e[key] ?? '').length),
     );
   const w = {
     institution: showInstitution ? width('institution') : 0,
     account: width('account'),
     type: width('type'),
-    currency: showCurrency ? width('currency') : 0,
     balance: width('balance'),
   };
 
-  const fmt = (e: AccountEntry) => [
+  const fmt = (e: typeof formatted[number]) => [
     showInstitution ? (e.institution ?? '').padEnd(w.institution) : null,
     e.account.padEnd(w.account),
     e.type.padEnd(w.type),
-    showCurrency ? (e.currency ?? '').padEnd(w.currency) : null,
     e.balance.padStart(w.balance),
   ].filter(Boolean).join('  ');
 
   const header = fmt({
-    institution: 'Institution',
-    account: 'Account',
-    type: 'Type',
-    currency: 'Currency',
-    balance: 'Balance',
+    institution: 'Institution', account: 'Account', type: 'Type', balance: 'Balance',
   });
   const divider = fmt({
     institution: '-'.repeat(w.institution),
     account: '-'.repeat(w.account),
     type: '-'.repeat(w.type),
-    currency: '-'.repeat(w.currency),
     balance: '-'.repeat(w.balance),
   });
 
   console.log();
   console.log(`  ${header}`);
   console.log(`  ${divider}`);
-  for (const e of entries) {
+  for (const e of formatted) {
     console.log(`  ${fmt(e)}`);
   }
   console.log();
