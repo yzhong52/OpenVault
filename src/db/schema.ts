@@ -11,6 +11,7 @@ export const accounts = sqliteTable('accounts', {
   institutionId: text('institution_id').notNull().references(() => institutions.id),
   name:          text('name').notNull(),
   type:          text('type'),
+  currency:      text('currency'),
 });
 
 export const syncs = sqliteTable('syncs', {

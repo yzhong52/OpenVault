@@ -23,6 +23,7 @@ export function makeAccountsCommand(): Command {
           institution: row.institutionName,
           account:     row.accountName,
           type:        row.accountType ?? '—',
+          currency:    row.accountCurrency ?? undefined,
           balance:     row.amountCents != null
             ? `$${(row.amountCents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`
             : '—',

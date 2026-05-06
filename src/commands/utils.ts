@@ -60,15 +60,17 @@ export interface AccountEntry {
   institution?: string;
   account: string;
   type: string;
+  currency?: string;
   balance: string;
 }
 
 export function printAccountsTable(entries: AccountEntry[], demo: boolean): void {
   if (demo) entries = entries.map(applyDemo);
   const showInstitution = entries.some(e => e.institution != null);
-  const headers = { account: 'Account', type: 'Type', balance: 'Balance' };
+  const showCurrency = entries.some(e => e.currency != null);
+  const headers = { account: 'Account', type: 'Type', currency: 'Currency', balance: 'Balance' };
 
-  const width = (key: 'institution' | 'account' | 'type' | 'balance') =>
+  const width = (key: 'institution' | 'account' | 'type' | 'currency' | 'balance') =>
     Math.max(
       key === 'institution' ? 'Institution'.length : headers[key as keyof typeof headers].length,
       ...entries.map(e => (e[key] ?? '').length),
@@ -77,6 +79,7 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
     institution: showInstitution ? width('institution') : 0,
     account: width('account'),
     type: width('type'),
+    currency: showCurrency ? width('currency') : 0,
     balance: width('balance'),
   };
 
@@ -84,6 +87,7 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
     showInstitution ? (e.institution ?? '').padEnd(w.institution) : null,
     e.account.padEnd(w.account),
     e.type.padEnd(w.type),
+    showCurrency ? (e.currency ?? '').padEnd(w.currency) : null,
     e.balance.padStart(w.balance),
   ].filter(Boolean).join('  ');
 
@@ -91,12 +95,14 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
     institution: 'Institution',
     account: 'Account',
     type: 'Type',
+    currency: 'Currency',
     balance: 'Balance',
   });
   const divider = fmt({
     institution: '-'.repeat(w.institution),
     account: '-'.repeat(w.account),
     type: '-'.repeat(w.type),
+    currency: '-'.repeat(w.currency),
     balance: '-'.repeat(w.balance),
   });
 

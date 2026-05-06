@@ -11,6 +11,7 @@ import {
 export interface Account {
   name: string;
   type?: string;
+  currency?: string;
   balance?: string;
 }
 
@@ -28,9 +29,10 @@ const REPORT_TOOL: Tool = {
         items: {
           type: 'object',
           properties: {
-            name:    { type: 'string', description: 'Account name or label' },
-            type:    { type: 'string', description: 'Account type, e.g. TFSA, RRSP, chequing' },
-            balance: { type: 'string', description: 'Current balance as displayed, e.g. "$12,345.67"' },
+            name:     { type: 'string', description: 'Account name or label' },
+            type:     { type: 'string', description: 'Account type without currency, e.g. TFSA, RRSP, chequing, savings' },
+            currency: { type: 'string', description: 'ISO 4217 currency code if known, e.g. CAD, USD. Omit for default domestic currency.' },
+            balance:  { type: 'string', description: 'Current balance as displayed, e.g. "$12,345.67"' },
           },
           required: ['name'],
         },
@@ -55,7 +57,7 @@ function buildSystemPrompt(notes: string): string {
   return `\
 You are a browser automation agent. The user has just logged into their financial institution and the dashboard is visible.
 
-Your job is to find all accounts on the page — including their names, types (e.g. TFSA, RRSP, chequing, savings), and balances.
+Your job is to find all accounts on the page — including their names, types (e.g. TFSA, RRSP, chequing, savings), currency (if non-default, e.g. USD), and balances.
 
 Steps:
 1. The current page state is already provided — identify all account entries.
