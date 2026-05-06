@@ -85,12 +85,15 @@ export function saveSync(
       .run();
 
     for (const account of accountList) {
-        const accountId = `${institutionId}/${account.name}/${account.type ?? ''}`;
+      const accountId = `${institutionId}/${account.name}`;
 
       tx.insert(accountsTable)
         .values({ id: accountId, institutionId, name: account.name, type: account.type,
                   currency: account.currency })
-        .onConflictDoNothing()
+        .onConflictDoUpdate({
+          target: accountsTable.id,
+          set: { type: account.type, currency: account.currency },
+        })
         .run();
 
       tx.insert(balances)
