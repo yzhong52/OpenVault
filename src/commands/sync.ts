@@ -58,11 +58,14 @@ export function makeSyncCommand(): Command {
 
           console.log(`\n${inst.name} accounts:`);
           printAccountsTable(accounts.map(a => ({
-            account: a.name,
-            type:    a.type ?? '—',
-            balance: a.balance ?? '—',
+            account:  a.name,
+            type:     a.type ?? '—',
+            currency: a.currency ?? undefined,
+            balance:  a.balance ?? '—',
           })), opts.demo);
         }
+      } catch (err) {
+        console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         close();
         await prompt('\nPress Enter to close... ');

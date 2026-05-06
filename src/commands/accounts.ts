@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { openDb } from '../db';
 import { listAccounts } from '../db/storage';
-import { printAccountsTable } from './utils';
+import { printAccountsTable, formatCents } from './utils';
 
 export function makeAccountsCommand(): Command {
   const cmd = new Command('accounts').description('View stored account data');
@@ -23,8 +23,9 @@ export function makeAccountsCommand(): Command {
           institution: row.institutionName,
           account:     row.accountName,
           type:        row.accountType ?? '—',
+          currency:    row.accountCurrency ?? undefined,
           balance:     row.amountCents != null
-            ? `$${(row.amountCents / 100).toLocaleString('en-CA', { minimumFractionDigits: 2 })}`
+            ? formatCents(row.amountCents)
             : '—',
         })), opts.demo);
       } finally {

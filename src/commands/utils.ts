@@ -56,10 +56,17 @@ export function prompt(question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans); }));
 }
 
+export function formatCents(cents: number): string {
+  const abs = Math.abs(cents) / 100;
+  const formatted = abs.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return cents < 0 ? `-$${formatted}` : `$${formatted}`;
+}
+
 export interface AccountEntry {
   institution?: string;
   account: string;
   type: string;
+  currency?: string;
   balance: string;
 }
 
@@ -68,10 +75,15 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
   const showInstitution = entries.some(e => e.institution != null);
   const headers = { account: 'Account', type: 'Type', balance: 'Balance' };
 
+  const formatted = entries.map(e => ({
+    ...e,
+    balance: e.currency && e.balance !== '—' ? `${e.currency} ${e.balance}` : e.balance,
+  }));
+
   const width = (key: 'institution' | 'account' | 'type' | 'balance') =>
     Math.max(
       key === 'institution' ? 'Institution'.length : headers[key as keyof typeof headers].length,
-      ...entries.map(e => (e[key] ?? '').length),
+      ...formatted.map(e => (e[key] ?? '').length),
     );
   const w = {
     institution: showInstitution ? width('institution') : 0,
@@ -80,7 +92,7 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
     balance: width('balance'),
   };
 
-  const fmt = (e: AccountEntry) => [
+  const fmt = (e: typeof formatted[number]) => [
     showInstitution ? (e.institution ?? '').padEnd(w.institution) : null,
     e.account.padEnd(w.account),
     e.type.padEnd(w.type),
@@ -88,10 +100,7 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
   ].filter(Boolean).join('  ');
 
   const header = fmt({
-    institution: 'Institution',
-    account: 'Account',
-    type: 'Type',
-    balance: 'Balance',
+    institution: 'Institution', account: 'Account', type: 'Type', balance: 'Balance',
   });
   const divider = fmt({
     institution: '-'.repeat(w.institution),
@@ -103,7 +112,7 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
   console.log();
   console.log(`  ${header}`);
   console.log(`  ${divider}`);
-  for (const e of entries) {
+  for (const e of formatted) {
     console.log(`  ${fmt(e)}`);
   }
   console.log();

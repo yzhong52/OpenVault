@@ -22,6 +22,7 @@ export interface AccountRow {
   institutionName: string;
   accountName: string;
   accountType: string | null;
+  accountCurrency: string | null;
   latestDate: string | null;
   amountCents: number | null;
 }
@@ -29,10 +30,11 @@ export interface AccountRow {
 export function listAccounts(db: Db): AccountRow[] {
   const rows = db
     .select({
-      institutionName: institutions.name,
-      accountName: accountsTable.name,
-      accountType: accountsTable.type,
-      accountId: accountsTable.id,
+      institutionName:  institutions.name,
+      accountName:      accountsTable.name,
+      accountType:      accountsTable.type,
+      accountCurrency:  accountsTable.currency,
+      accountId:        accountsTable.id,
     })
     .from(accountsTable)
     .innerJoin(institutions, eq(accountsTable.institutionId, institutions.id))
@@ -48,11 +50,12 @@ export function listAccounts(db: Db): AccountRow[] {
       .limit(1)
       .get();
     return {
-      institutionName: row.institutionName,
-      accountName: row.accountName,
-      accountType: row.accountType,
-      latestDate: balance?.date ?? null,
-      amountCents: balance?.amountCents ?? null,
+      institutionName:  row.institutionName,
+      accountName:      row.accountName,
+      accountType:      row.accountType,
+      accountCurrency:  row.accountCurrency,
+      latestDate:       balance?.date ?? null,
+      amountCents:      balance?.amountCents ?? null,
     };
   });
 }
@@ -82,11 +85,15 @@ export function saveSync(
       .run();
 
     for (const account of accountList) {
-      const accountId = `${institutionId}/${account.name}/${account.type ?? ''}`;
+      const accountId = `${institutionId}/${account.name}`;
 
       tx.insert(accountsTable)
-        .values({ id: accountId, institutionId, name: account.name, type: account.type })
-        .onConflictDoNothing()
+        .values({ id: accountId, institutionId, name: account.name, type: account.type,
+                  currency: account.currency })
+        .onConflictDoUpdate({
+          target: accountsTable.id,
+          set: { type: account.type, currency: account.currency },
+        })
         .run();
 
       tx.insert(balances)
