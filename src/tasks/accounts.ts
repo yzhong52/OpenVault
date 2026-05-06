@@ -64,6 +64,8 @@ Steps:
 2. They typically appear as a list with a label and a dollar amount.
 3. If accounts are behind a tab or link (e.g. "All accounts", "Holdings"), click it.
 4. Once you have a complete list, call report_accounts with all the accounts you found.
+   - Set "type" to the account category only (e.g. "savings", "chequing", "TFSA") — do not include currency in the type.
+   - Set "currency" to the ISO 4217 code (e.g. "USD") only when the account is in a non-default foreign currency. Omit it for domestic accounts.
 
 Do not navigate away from the dashboard. Do not click login/logout links.${formatMemoryForPrompt(notes, 'accounts')}`;
 }
