@@ -69,13 +69,11 @@ Reuses `listAccounts()` from `src/db/storage.ts`. Returns JSON array of:
 
 ### `GET /api/net-worth`
 
-New query: aggregate `balances` by date, summing `amountCents` across all accounts. Returns:
+New query: fetches daily balances for all accounts. We will use TypeScript to apply a "carry-forward" logic — if an account wasn't synced on a specific day, its last known balance is carried forward into the net worth sum for that date to prevent artificial drops. Returns:
 
 ```ts
 { date: string; amountCents: number }[]  // ordered by date asc
 ```
-
-Sums whatever accounts have a balance on each day — no filtering for "complete" days. This means earlier dates may reflect fewer accounts, but data appears as soon as any account has history.
 
 ---
 
@@ -102,12 +100,12 @@ Sums whatever accounts have a balance on each day — no filtering for "complete
 ## npm script
 
 ```json
-"ui": "node scripts/build-ui.mjs && tsx src/ui/server.ts"
+"ui": "tsx scripts/build-ui.ts"
 ```
 
-`scripts/build-ui.mjs` calls esbuild programmatically to bundle `src/ui/client/index.tsx` → `src/ui/dist/bundle.js`. Keeping it in a separate file makes flags easy to read and change.
+`scripts/build-ui.ts` runs directly via `tsx` (keeping everything in TypeScript) and calls esbuild programmatically to bundle `src/ui/client/index.tsx` → `src/ui/dist/bundle.js`. The extension is `.js` because browsers must consume plain JavaScript, but the entire source is TypeScript.
 
-Build takes ~200ms. On save, re-run `npm run ui` (no watch needed for a personal tool).
+It includes **watch mode** via esbuild's context API and can simultaneously spawn/manage the Hono server child process so that `npm run ui` hot-reloads everything in one terminal.
 
 ---
 
@@ -124,9 +122,9 @@ The flag is read in `server.ts` and injected into both query handlers before ser
 ## Implementation steps
 
 1. Add dependencies
-2. Write the two DB queries (`listAccounts` already exists; add `getNetWorthHistory` to `src/db/storage.ts`)
-3. Build `server.ts` (Hono, two API routes, serve `dist/bundle.js` + inline HTML shell, `--demo` flag support)
-4. Build client components (`App`, `NetWorthChart`, `AccountsTable`)
-5. Write `scripts/build-ui.mjs`
+2. Write the two DB queries (`listAccounts` already exists; add `getNetWorthHistory` to `src/db/storage.ts` with TS carry-forward logic)
+3. Build `server.ts` (Hono, two API routes, serve `dist/bundle.js` + inline HTML shell, `--demo` flag support using `formatCents`)
+4. Build client components (`App`, `NetWorthChart`, `AccountsTable` in TSX)
+5. Write `scripts/build-ui.ts` (adding esbuild watch logic)
 6. Wire up `npm run ui` script
 7. Smoke test with real DB data
