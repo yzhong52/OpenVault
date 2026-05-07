@@ -119,3 +119,47 @@ export function saveSync(
     }
   });
 }
+
+export interface NetWorthPoint {
+  date: string;
+  amountCents: number;
+}
+
+export function getNetWorthHistory(db: Db): NetWorthPoint[] {
+  const allBalances = db
+    .select({
+      accountId: balances.accountId,
+      date: balances.date,
+      amountCents: balances.amountCents,
+    })
+    .from(balances)
+    .orderBy(balances.date)
+    .all();
+
+  const balancesByDate = new Map<string, typeof allBalances>();
+  for (const b of allBalances) {
+    if (!balancesByDate.has(b.date)) balancesByDate.set(b.date, []);
+    balancesByDate.get(b.date)!.push(b);
+  }
+
+  const dates = Array.from(balancesByDate.keys()).sort();
+  const currentBalances: Record<string, number> = {};
+  const result: NetWorthPoint[] = [];
+
+  for (const date of dates) {
+    for (const b of balancesByDate.get(date)!) {
+      if (b.amountCents !== null) {
+        currentBalances[b.accountId] = b.amountCents;
+      }
+    }
+
+    let dailyTotal = 0;
+    for (const amount of Object.values(currentBalances)) {
+      dailyTotal += amount;
+    }
+
+    result.push({ date, amountCents: dailyTotal });
+  }
+
+  return result;
+}
