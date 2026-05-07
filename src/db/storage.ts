@@ -142,14 +142,21 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
     balancesByDate.get(b.date)!.push(b);
   }
 
-  const dates = Array.from(balancesByDate.keys()).sort();
+  const explicitDates = Array.from(balancesByDate.keys()).sort();
+  if (explicitDates.length === 0) return [];
+
   const currentBalances: Record<string, number> = {};
   const result: NetWorthPoint[] = [];
 
-  for (const date of dates) {
-    for (const b of balancesByDate.get(date)!) {
-      if (b.amountCents !== null) {
-        currentBalances[b.accountId] = b.amountCents;
+  let currentDate = explicitDates[0];
+  const endDate = explicitDates[explicitDates.length - 1];
+
+  while (currentDate <= endDate) {
+    if (balancesByDate.has(currentDate)) {
+      for (const b of balancesByDate.get(currentDate)!) {
+        if (b.amountCents !== null) {
+          currentBalances[b.accountId] = b.amountCents;
+        }
       }
     }
 
@@ -158,7 +165,12 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
       dailyTotal += amount;
     }
 
-    result.push({ date, amountCents: dailyTotal });
+    result.push({ date: currentDate, amountCents: dailyTotal });
+
+    // Advance to the next calendar day
+    const [y, m, d] = currentDate.split('-').map(Number);
+    const nextDate = new Date(Date.UTC(y, m - 1, d + 1));
+    currentDate = nextDate.toISOString().slice(0, 10);
   }
 
   return result;

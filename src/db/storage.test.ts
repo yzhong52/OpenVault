@@ -44,9 +44,9 @@ describe('getNetWorthHistory', () => {
         // Savings should carry forward its $2000 balance into Day 2's total
         { accountId: 'td/chequing', date: '2026-05-02', amountCents: 50000 },
         
-        // Day 3: Both accounts synced again
-        { accountId: 'td/chequing', date: '2026-05-03', amountCents: 60000 },  // $600
-        { accountId: 'td/savings',  date: '2026-05-03', amountCents: 210000 }, // $2100
+        // Day 4: Both accounts synced again (Day 3 is completely missing from DB)
+        { accountId: 'td/chequing', date: '2026-05-04', amountCents: 60000 },  // $600
+        { accountId: 'td/savings',  date: '2026-05-04', amountCents: 210000 }, // $2100
       ])
       .run();
 
@@ -55,7 +55,8 @@ describe('getNetWorthHistory', () => {
     expect(history).toEqual([
       { date: '2026-05-01', amountCents: 300000 }, // 100000 + 200000
       { date: '2026-05-02', amountCents: 250000 }, // 50000 + 200000 (carried forward)
-      { date: '2026-05-03', amountCents: 270000 }, // 60000 + 210000
+      { date: '2026-05-03', amountCents: 250000 }, // 50000 + 200000 (both carried forward over a completely skipped day)
+      { date: '2026-05-04', amountCents: 270000 }, // 60000 + 210000
     ]);
   });
 });
