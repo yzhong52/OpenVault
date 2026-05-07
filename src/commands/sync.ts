@@ -72,11 +72,14 @@ export function makeSyncCommand(): Command {
 
           console.log(`\n${inst.name} accounts:`);
           printAccountsTable(accounts.map(a => ({
-            account:  a.name,
-            type:     a.type ?? '—',
-            currency: a.currency ?? undefined,
-            balance:  a.balance ?? '—',
-          })), opts.demo);
+            institution: inst.name,
+            account:     a.name,
+            accountId:   a.accountId,
+            type:        a.type ?? '—',
+            currency:    a.currency ?? undefined,
+            balance:     a.balance ?? '—',
+          // showInstitution: false — institution already shown as header above
+          })), opts.demo, false);
         }
       } catch (err) {
         console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);

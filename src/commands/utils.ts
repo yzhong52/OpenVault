@@ -62,25 +62,29 @@ export function formatCents(cents: number): string {
   return cents < 0 ? `-$${formatted}` : `$${formatted}`;
 }
 
+// Display-only struct for printAccountsTable.
 export interface AccountEntry {
-  institution?: string;
+  institution: string;
   account: string;
+  accountId?: string;
   type: string;
   currency?: string;
   balance: string;
 }
 
-export function printAccountsTable(entries: AccountEntry[], demo: boolean): void {
+export function printAccountsTable(
+  entries: AccountEntry[], demo: boolean, showInstitution: boolean,
+): void {
   if (demo) entries = entries.map(applyDemo);
-  const showInstitution = entries.some(e => e.institution != null);
-  const headers = { account: 'Account', type: 'Type', balance: 'Balance' };
+  const headers = { account: 'Account', accountId: 'ID', type: 'Type', balance: 'Balance' };
+  const showAccountId = entries.some(e => e.accountId != null);
 
   const formatted = entries.map(e => ({
     ...e,
     balance: e.currency && e.balance !== '—' ? `${e.currency} ${e.balance}` : e.balance,
   }));
 
-  const width = (key: 'institution' | 'account' | 'type' | 'balance') =>
+  const width = (key: 'institution' | 'account' | 'accountId' | 'type' | 'balance') =>
     Math.max(
       key === 'institution' ? 'Institution'.length : headers[key as keyof typeof headers].length,
       ...formatted.map(e => (e[key] ?? '').length),
@@ -88,6 +92,7 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
   const w = {
     institution: showInstitution ? width('institution') : 0,
     account: width('account'),
+    accountId: showAccountId ? width('accountId') : 0,
     type: width('type'),
     balance: width('balance'),
   };
@@ -95,16 +100,18 @@ export function printAccountsTable(entries: AccountEntry[], demo: boolean): void
   const fmt = (e: typeof formatted[number]) => [
     showInstitution ? (e.institution ?? '').padEnd(w.institution) : null,
     e.account.padEnd(w.account),
+    showAccountId ? (e.accountId ?? '').padEnd(w.accountId) : null,
     e.type.padEnd(w.type),
     e.balance.padStart(w.balance),
   ].filter(Boolean).join('  ');
 
   const header = fmt({
-    institution: 'Institution', account: 'Account', type: 'Type', balance: 'Balance',
+    institution: 'Institution', account: 'Account', accountId: 'ID', type: 'Type', balance: 'Balance',
   });
   const divider = fmt({
     institution: '-'.repeat(w.institution),
     account: '-'.repeat(w.account),
+    accountId: '-'.repeat(w.accountId),
     type: '-'.repeat(w.type),
     balance: '-'.repeat(w.balance),
   });
