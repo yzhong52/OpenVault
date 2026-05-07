@@ -8,9 +8,17 @@ import { listAccounts, getNetWorthHistory } from '../db/storage';
 const app = new Hono();
 
 const isDemo = process.argv.includes('--demo');
-// Generate a stable multiplier for the server session so the accounts table and net worth chart
-// are scaled by the exact same random amount, keeping the data visually correlated.
-const DEMO_MULTIPLIER = 0.3 + Math.random() * 1.5;
+
+// In demo mode, we assign a completely random stable balance ($5k - $150k) to each account 
+// to entirely decouple from real values and protect privacy.
+const demoBalances = new Map<string, number>();
+
+function getDemoBalance(accountId: string): number {
+  if (!demoBalances.has(accountId)) {
+    demoBalances.set(accountId, Math.floor((Math.random() * 145000 + 5000) * 100));
+  }
+  return demoBalances.get(accountId)!;
+}
 
 function applyDemoMask(name: string): string {
   // E.g. "Chequing 1234" -> "Chequing ••••"
@@ -28,7 +36,7 @@ app.get('/api/accounts', (c) => {
       accounts = accounts.map(a => ({
         ...a,
         accountName: applyDemoMask(a.accountName),
-        amountCents: a.amountCents !== null ? Math.floor(a.amountCents * DEMO_MULTIPLIER) : null,
+        amountCents: a.amountCents !== null ? getDemoBalance(`${a.institutionName}/${a.accountName}`) : null,
       }));
     }
 
@@ -43,11 +51,21 @@ app.get('/api/net-worth', (c) => {
   try {
     let history = getNetWorthHistory(db);
 
-    if (isDemo) {
-      history = history.map(h => ({
-        ...h,
-        amountCents: Math.floor(h.amountCents * DEMO_MULTIPLIER),
-      }));
+    if (isDemo && history.length > 0) {
+      // Calculate the sum of all fake accounts to anchor the end of our fake chart,
+      // guaranteeing the net worth chart perfectly matches the account table total
+      const accounts = listAccounts(db);
+      let runningTotal = accounts.reduce((sum, a) => 
+        sum + (a.amountCents !== null ? getDemoBalance(`${a.institutionName}/${a.accountName}`) : 0)
+      , 0);
+
+      // Walk backwards through history, applying a random simulated market variance
+      for (let i = history.length - 1; i >= 0; i--) {
+        history[i].amountCents = runningTotal;
+        // Going backwards: balance drops by -0.5% to +1.5% per day to simulate an upward trend
+        const variance = (Math.random() * 0.02) - 0.005; 
+        runningTotal = Math.floor(runningTotal * (1 - variance));
+      }
     }
 
     return c.json(history);
