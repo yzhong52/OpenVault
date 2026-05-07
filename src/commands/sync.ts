@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import { login } from '../tasks/login';
-import { exploreAccounts } from '../tasks/accounts';
+import { exploreAccounts, type AccountType } from '../tasks/accounts';
 import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
-import { saveSync } from '../db/storage';
+import { saveSync, listAccounts } from '../db/storage';
 import { prompt, readInstitutions, printAccountsTable, launchBrowser } from './utils';
 
 export function makeSyncCommand(): Command {
@@ -53,16 +53,33 @@ export function makeSyncCommand(): Command {
           const sessionDir = await createSession(inst.url);
           await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
 
-          const accounts = await exploreAccounts(page, inst.name, sessionDir);
+          const existingAccountsMsg = listAccounts(db)
+            .filter(a => a.institutionName === inst.name)
+            .map(a => {
+              // Extract the ID part (everything after the first '/') if it differs from name
+              const dbIdPart = a.accountId.split('/').slice(1).join('/');
+              const accountId = dbIdPart !== a.accountName ? dbIdPart : undefined;
+              return {
+                name: a.accountName,
+                accountId,
+                type: (a.accountType ?? undefined) as AccountType | undefined,
+                currency: a.accountCurrency ?? undefined,
+              };
+            });
+
+          const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccountsMsg);
           saveSync(db, inst.name, inst.url, accounts);
 
           console.log(`\n${inst.name} accounts:`);
           printAccountsTable(accounts.map(a => ({
-            account:  a.name,
-            type:     a.type ?? '—',
-            currency: a.currency ?? undefined,
-            balance:  a.balance ?? '—',
-          })), opts.demo);
+            institution: inst.name,
+            account:     a.name,
+            accountId:   a.accountId,
+            type:        a.type ?? '—',
+            currency:    a.currency ?? undefined,
+            balance:     a.balance ?? '—',
+          // showInstitution: false — institution already shown as header above
+          })), opts.demo, false);
         }
       } catch (err) {
         console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);

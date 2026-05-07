@@ -31,6 +31,7 @@ export type AccountType = typeof ACCOUNT_TYPES[number];
 
 export interface Account {
   name: string;
+  accountId?: string;
   type?: AccountType;
   currency?: string;
   balance?: string;
@@ -51,8 +52,10 @@ const REPORT_TOOL: Tool = {
           type: 'object',
           properties: {
             name:     { type: 'string', description: 'Account name or label' },
+            accountId:{ type: 'string', description: 'A unique account number or identifier if visible (e.g., the last 4 digits). Omit if not visible.' },
             type:     { type: 'string', enum: ACCOUNT_TYPES, description: 'Account category. Pick the closest match from the enum.' },
             currency: { type: 'string', description: 'ISO 4217 currency code if known, e.g. CAD, USD. Omit for default domestic currency.' },
+            // TODO: balance should be number
             balance:  { type: 'string', description: 'Current balance as displayed, e.g. "$12,345.67"' },
           },
           required: ['name'],
@@ -74,7 +77,17 @@ const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.FRAME_SNAPSHOT, BROWSER_TOOL.GET_INPUTS,
 ]);
 
-function buildSystemPrompt(notes: string): string {
+function buildSystemPrompt(
+  notes: string,
+  existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[]
+): string {
+  let existingAccountsMsg = '';
+  if (existingAccounts && existingAccounts.length > 0) {
+    existingAccountsMsg = `\nPreviously seen accounts for this institution:\n` +
+      existingAccounts.map(a => `- "${a.name}" (ID: ${a.accountId || 'none'}, Type: ${a.type || 'unknown'}, Currency: ${a.currency || 'unknown'})`).join('\n') +
+      `\n\nIMPORTANT: If you see an account that matches one of the above, please report it using the exact same name and ID from this list to prevent duplicates. If it has a new ID or doesn't match, treat it as a new account.\n`;
+  }
+
   return `\
 You are a browser automation agent. The user has just logged into their financial institution and the dashboard is visible.
 
@@ -87,12 +100,16 @@ Steps:
 4. Once you have a complete list, call report_accounts with all the accounts you found.
    - Set "type" to the account category only (e.g. "Savings", "Chequing", "TFSA") — do not include currency in the type.
    - Set "currency" to the ISO 4217 code (e.g. "USD") only when the account is in a non-default foreign currency. Omit it for domestic accounts.
-
-Do not navigate away from the dashboard. Do not click login/logout links.${formatMemoryForPrompt(notes, 'accounts')}`;
+${existingAccountsMsg}
+Do not navigate away from the dashboard. Do not click login/logout links.
+${formatMemoryForPrompt(notes, 'accounts')}`;
 }
 
 export async function exploreAccounts(
-  page: Page, institutionName: string, sessionDir: string,
+  page: Page,
+  institutionName: string,
+  sessionDir: string,
+  existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[] = [],
 ): Promise<Account[]> {
   console.log('🤖 Exploring accounts...');
 
@@ -106,7 +123,7 @@ export async function exploreAccounts(
     return await runAgent<Account[]>(
       page,
       TOOLS,
-      buildSystemPrompt(notes),
+      buildSystemPrompt(notes, existingAccounts),
       'The user is now logged in.',
       async (name, input, pg) => {
         if (name === REPORT_ACCOUNTS) {

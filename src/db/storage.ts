@@ -29,6 +29,7 @@ export interface AccountRow {
   accountName: string;
   accountType: string | null;
   accountCurrency: string | null;
+  accountId: string;
   latestDate: string | null;
   amountCents: number | null;
 }
@@ -60,6 +61,7 @@ export function listAccounts(db: Db): AccountRow[] {
       accountName:      row.accountName,
       accountType:      row.accountType,
       accountCurrency:  row.accountCurrency,
+      accountId:        row.accountId,
       latestDate:       balance?.date ?? null,
       amountCents:      balance?.amountCents ?? null,
     };
@@ -91,7 +93,8 @@ export function saveSync(
       .run();
 
     for (const account of accountList) {
-      const accountId = `${institutionId}/${account.name}`;
+      // institutionId prefix ensures global uniqueness — account names are only unique within an institution
+      const accountId = `${institutionId}/${account.accountId ?? account.name}`;
 
       tx.insert(accountsTable)
         .values({ id: accountId, institutionId, name: account.name,

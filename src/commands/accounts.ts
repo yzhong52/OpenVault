@@ -19,15 +19,23 @@ export function makeAccountsCommand(): Command {
           return;
         }
 
-        printAccountsTable(rows.map(row => ({
-          institution: row.institutionName,
-          account:     row.accountName,
-          type:        row.accountType ?? '—',
-          currency:    row.accountCurrency ?? undefined,
-          balance:     row.amountCents != null
-            ? formatCents(row.amountCents)
-            : '—',
-        })), opts.demo);
+        const entries = rows.map(row => {
+          const dbIdPart = row.accountId.split('/').slice(1).join('/');
+          return {
+            institution: row.institutionName,
+            account:     row.accountName,
+            accountId:   dbIdPart !== row.accountName ? dbIdPart : undefined,
+            type:        row.accountType ?? '—',
+            currency:    row.accountCurrency ?? undefined,
+            balance:     row.amountCents != null ? formatCents(row.amountCents) : '—',
+          };
+        });
+        printAccountsTable(
+          entries,
+          opts.demo,
+          // showInstitution: multiple institutions in one table
+          true,
+        );
       } finally {
         close();
       }
