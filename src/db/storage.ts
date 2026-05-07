@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Account } from '../tasks/accounts';
 import { ACCOUNT_TYPES } from '../tasks/accounts';
 import { type Db } from '.';
@@ -35,37 +35,20 @@ export interface AccountRow {
 }
 
 export function listAccounts(db: Db): AccountRow[] {
-  const rows = db
+  return db
     .select({
-      institutionName:  institutions.name,
-      accountName:      accountsTable.name,
-      accountType:      accountsTable.type,
-      accountCurrency:  accountsTable.currency,
-      accountId:        accountsTable.id,
+      institutionName: institutions.name,
+      accountName:     accountsTable.name,
+      accountType:     accountsTable.type,
+      accountCurrency: accountsTable.currency,
+      accountId:       accountsTable.id,
+      latestDate:      accountsTable.latestDate,
+      amountCents:     accountsTable.latestAmountCents,
     })
     .from(accountsTable)
     .innerJoin(institutions, eq(accountsTable.institutionId, institutions.id))
     .orderBy(institutions.name, accountsTable.name)
     .all();
-
-  return rows.map(row => {
-    const balance = db
-      .select({ amountCents: balances.amountCents, date: balances.date })
-      .from(balances)
-      .where(eq(balances.accountId, row.accountId))
-      .orderBy(desc(balances.date))
-      .limit(1)
-      .get();
-    return {
-      institutionName:  row.institutionName,
-      accountName:      row.accountName,
-      accountType:      row.accountType,
-      accountCurrency:  row.accountCurrency,
-      accountId:        row.accountId,
-      latestDate:       balance?.date ?? null,
-      amountCents:      balance?.amountCents ?? null,
-    };
-  });
 }
 
 export function saveSync(
@@ -96,26 +79,86 @@ export function saveSync(
       // institutionId prefix ensures global uniqueness — account names are only unique within an institution
       const accountId = `${institutionId}/${account.accountId ?? account.name}`;
 
+      const amountCents = account.balance ? parseCents(account.balance) : null;
+
       tx.insert(accountsTable)
-        .values({ id: accountId, institutionId, name: account.name,
-                  type: normalizeType(account.type), currency: account.currency })
+        .values({
+          id: accountId, institutionId, name: account.name,
+          type: normalizeType(account.type), currency: account.currency,
+          latestDate: today, latestAmountCents: amountCents,
+        })
         .onConflictDoUpdate({
           target: accountsTable.id,
-          set: { type: normalizeType(account.type), currency: account.currency },
+          set: {
+            type: normalizeType(account.type), currency: account.currency,
+            latestDate: today, latestAmountCents: amountCents,
+          },
         })
         .run();
 
       tx.insert(balances)
-        .values({
-          accountId,
-          date: today,
-          amountCents: account.balance ? parseCents(account.balance) : null,
-        })
+        .values({ accountId, date: today, amountCents })
         .onConflictDoUpdate({
           target: [balances.accountId, balances.date],
-          set: { amountCents: account.balance ? parseCents(account.balance) : null },
+          set: { amountCents },
         })
         .run();
     }
   });
+}
+
+export interface NetWorthPoint {
+  date: string;
+  amountCents: number;
+}
+
+export function getNetWorthHistory(db: Db): NetWorthPoint[] {
+  const allBalances = db
+    .select({
+      accountId: balances.accountId,
+      date: balances.date,
+      amountCents: balances.amountCents,
+    })
+    .from(balances)
+    .orderBy(balances.date)
+    .all();
+
+  const balancesByDate = new Map<string, typeof allBalances>();
+  for (const b of allBalances) {
+    if (!balancesByDate.has(b.date)) balancesByDate.set(b.date, []);
+    balancesByDate.get(b.date)!.push(b);
+  }
+
+  const explicitDates = Array.from(balancesByDate.keys()).sort();
+  if (explicitDates.length === 0) return [];
+
+  const currentBalances: Record<string, number> = {};
+  const result: NetWorthPoint[] = [];
+
+  let currentDate = explicitDates[0];
+  const endDate = explicitDates[explicitDates.length - 1];
+
+  while (currentDate <= endDate) {
+    if (balancesByDate.has(currentDate)) {
+      for (const b of balancesByDate.get(currentDate)!) {
+        if (b.amountCents !== null) {
+          currentBalances[b.accountId] = b.amountCents;
+        }
+      }
+    }
+
+    let dailyTotal = 0;
+    for (const amount of Object.values(currentBalances)) {
+      dailyTotal += amount;
+    }
+
+    result.push({ date: currentDate, amountCents: dailyTotal });
+
+    // Advance to the next calendar day
+    const [y, m, d] = currentDate.split('-').map(Number);
+    const nextDate = new Date(Date.UTC(y, m - 1, d + 1));
+    currentDate = nextDate.toISOString().slice(0, 10);
+  }
+
+  return result;
 }
