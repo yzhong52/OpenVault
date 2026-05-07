@@ -17,6 +17,7 @@ export function AccountsTable({ accounts }: { accounts: AccountRow[] }) {
                     <th style={{ padding: '12px 8px', fontWeight: 600 }}>Account</th>
                     <th style={{ padding: '12px 8px', fontWeight: 600 }}>Type</th>
                     <th style={{ padding: '12px 8px', fontWeight: 600, textAlign: 'right' }}>Balance</th>
+                    <th style={{ padding: '12px 8px', fontWeight: 600, textAlign: 'right' }}>Last synced</th>
                 </tr>
             </thead>
             <tbody>
@@ -27,6 +28,9 @@ export function AccountsTable({ accounts }: { accounts: AccountRow[] }) {
                         <td style={{ padding: '12px 8px', color: '#6b7280' }}>{a.accountType || '—'}</td>
                         <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 500 }}>
                             {formatCurrency(a.amountCents, a.accountCurrency)}
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right', color: '#6b7280' }}>
+                            {a.latestDate ?? '—'}
                         </td>
                     </tr>
                 ))}
