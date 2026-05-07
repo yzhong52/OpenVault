@@ -93,6 +93,7 @@ export function saveSync(
       .run();
 
     for (const account of accountList) {
+      // institutionId prefix ensures global uniqueness — account names are only unique within an institution
       const accountId = `${institutionId}/${account.accountId ?? account.name}`;
 
       tx.insert(accountsTable)

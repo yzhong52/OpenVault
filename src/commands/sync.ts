@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { login } from '../tasks/login';
-import { exploreAccounts } from '../tasks/accounts';
+import { exploreAccounts, type AccountType } from '../tasks/accounts';
 import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
@@ -62,7 +62,7 @@ export function makeSyncCommand(): Command {
               return {
                 name: a.accountName,
                 accountId,
-                type: (a.accountType as any) ?? undefined,
+                type: (a.accountType ?? undefined) as AccountType | undefined,
                 currency: a.accountCurrency ?? undefined,
               };
             });
