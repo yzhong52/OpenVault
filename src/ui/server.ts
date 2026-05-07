@@ -75,7 +75,7 @@ app.get('/api/net-worth', (c) => {
 });
 
 app.get('/dist/bundle.js', async (c) => {
-  const bundlePath = path.join(process.cwd(), 'src/ui/dist/bundle.js');
+  const bundlePath = path.join(process.cwd(), 'dist/ui/bundle.js');
   try {
     const content = await fs.readFile(bundlePath, 'utf8');
     return c.text(content, 200, {

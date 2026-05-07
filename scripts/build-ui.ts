@@ -28,7 +28,7 @@ async function buildUI() {
   const buildOptions: esbuild.BuildOptions = {
     entryPoints: ['src/ui/client/index.tsx'],
     bundle: true,
-    outfile: 'src/ui/dist/bundle.js',
+    outfile: 'dist/ui/bundle.js',
     minify: !isWatch,
     sourcemap: isWatch,
     platform: 'browser',
