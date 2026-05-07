@@ -19,8 +19,7 @@ export function makeAccountsCommand(): Command {
           return;
         }
 
-        // showInstitution: multiple institutions in one table
-        printAccountsTable(rows.map(row => {
+        const entries = rows.map(row => {
           const dbIdPart = row.accountId.split('/').slice(1).join('/');
           return {
             institution: row.institutionName,
@@ -30,7 +29,13 @@ export function makeAccountsCommand(): Command {
             currency:    row.accountCurrency ?? undefined,
             balance:     row.amountCents != null ? formatCents(row.amountCents) : '—',
           };
-        }), opts.demo, true);
+        });
+        printAccountsTable(
+          entries,
+          opts.demo,
+          // showInstitution: multiple institutions in one table
+          true,
+        );
       } finally {
         close();
       }
