@@ -1,4 +1,3 @@
-import React from 'react';
 import { Icon } from './Icons';
 
 type Page = 'dashboard' | 'accounts';
@@ -27,17 +26,7 @@ export function Sidebar({ page, setPage }: SidebarProps) {
         padding: '20px', display: 'flex', alignItems: 'center', gap: 10,
         borderBottom: '1px solid oklch(0.93 0.005 260)', minHeight: 60,
       }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 8,
-          background: `oklch(0.55 0.18 ${ACCENT})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="4" width="12" height="8" rx="1.5" stroke="white" strokeWidth="1.3"/>
-            <path d="M4 4V3a3 3 0 0 1 6 0v1" stroke="white" strokeWidth="1.3"/>
-            <circle cx="7" cy="8" r="1.2" fill="white"/>
-          </svg>
-        </div>
+        <img src="/favicon.png" alt="OpenVault" width={28} height={28} style={{ borderRadius: 8, flexShrink: 0 }}/>
         <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.02em' }}>OpenVault</span>
       </div>
 

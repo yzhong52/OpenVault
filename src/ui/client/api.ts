@@ -13,7 +13,8 @@ export interface NetWorthPoint {
   amountCents: number;
 }
 
-const demoParam = new URLSearchParams(window.location.search).get('demo') === '1' ? '?demo=1' : '';
+const demoValue = new URLSearchParams(window.location.search).get('demo');
+const demoParam = (demoValue === 'poor' || demoValue === 'rich') ? `?demo=${demoValue}` : '';
 
 export async function fetchAccounts(): Promise<AccountRow[]> {
   const res = await fetch(`/api/accounts${demoParam}`);
