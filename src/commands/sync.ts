@@ -1,10 +1,11 @@
 import { Command } from 'commander';
 import { login } from '../tasks/login';
 import { exploreAccounts, type AccountType } from '../tasks/accounts';
+import { fetchTransactions } from '../tasks/transactions';
 import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
-import { saveSync, listAccounts } from '../db/storage';
+import { saveSync, saveTransactions, listAccounts } from '../db/storage';
 import { prompt, readInstitutions, printAccountsTable, formatCents, launchBrowser } from './utils';
 
 export function makeSyncCommand(): Command {
@@ -16,8 +17,15 @@ export function makeSyncCommand(): Command {
     )
     .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
     .option('--demo', 'Hide sensitive data by randomizing balances and account numbers')
-    .action(async (opts: { institution: string | undefined; verbose: boolean; demo: boolean }) => {
+    .option('--days <n>', 'Number of days of transaction history to fetch (default: 30)', '30')
+    .action(async (opts: {
+      institution: string | undefined;
+      verbose: boolean;
+      demo: boolean;
+      days: string;
+    }) => {
       if (opts.verbose) process.env.VERBOSE = '1';
+      const lookbackDays = Math.max(1, parseInt(opts.days, 10) || 30);
       let institutions = await readInstitutions();
       if (opts.institution) {
         const filter = opts.institution.toLowerCase();
@@ -69,6 +77,20 @@ export function makeSyncCommand(): Command {
 
           const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccountsMsg);
           saveSync(db, inst.name, inst.url, accounts);
+
+          for (const account of accounts) {
+            const rawAccountId = account.accountId ?? account.name;
+            try {
+              const txs = await fetchTransactions(page, inst.name, account, lookbackDays, sessionDir);
+              saveTransactions(db, inst.name, rawAccountId, txs);
+              console.log(`  ✓ ${txs.length} transaction(s) saved for ${account.name}`);
+            } catch (err) {
+              console.error(
+                `  ❌ Transactions failed for ${account.name}: ` +
+                `${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
 
           console.log(`\n${inst.name} accounts:`);
           printAccountsTable(accounts.map(a => ({
