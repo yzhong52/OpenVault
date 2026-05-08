@@ -126,6 +126,45 @@ export function printAccountsTable(
   console.log();
 }
 
+export function selectFromList(items: string[], label: string): Promise<number> {
+  let selected = 0;
+
+  const render = (first: boolean) => {
+    if (!first) process.stdout.write(`\x1b[${items.length}A`);
+    for (let i = 0; i < items.length; i++) {
+      const marker = i === selected ? '>' : ' ';
+      process.stdout.write(`\x1b[2K  ${marker} ${items[i]}\n`);
+    }
+  };
+
+  process.stdout.write(`\n  ${label}\n`);
+  render(true);
+
+  return new Promise(resolve => {
+    process.stdin.setRawMode?.(true);
+    process.stdin.resume();
+    process.stdin.setEncoding('utf-8');
+
+    const onData = (ch: string) => {
+      if (ch === '\x1b[A') {
+        if (selected > 0) { selected--; render(false); }
+      } else if (ch === '\x1b[B') {
+        if (selected < items.length - 1) { selected++; render(false); }
+      } else if (ch === '\r' || ch === '\n') {
+        process.stdout.write('\n');
+        process.stdin.setRawMode?.(false);
+        process.stdin.pause();
+        process.stdin.removeListener('data', onData);
+        resolve(selected);
+      } else if (ch === '\x03') {
+        process.exit();
+      }
+    };
+
+    process.stdin.on('data', onData);
+  });
+}
+
 export function promptPassword(question: string): Promise<string> {
   process.stdout.write(question);
   process.stdin.setRawMode?.(true);
