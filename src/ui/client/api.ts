@@ -12,14 +12,16 @@ export interface NetWorthPoint {
   amountCents: number;
 }
 
+const demoParam = new URLSearchParams(window.location.search).get('demo') === '1' ? '?demo=1' : '';
+
 export async function fetchAccounts(): Promise<AccountRow[]> {
-  const res = await fetch('/api/accounts');
+  const res = await fetch(`/api/accounts${demoParam}`);
   if (!res.ok) throw new Error('Failed to fetch accounts');
   return res.json();
 }
 
 export async function fetchNetWorth(): Promise<NetWorthPoint[]> {
-  const res = await fetch('/api/net-worth');
+  const res = await fetch(`/api/net-worth${demoParam}`);
   if (!res.ok) throw new Error('Failed to fetch net worth history');
   return res.json();
 }
