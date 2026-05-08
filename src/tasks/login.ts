@@ -38,8 +38,9 @@ After each action, the updated page state is provided automatically.${formatMemo
 const credFieldSchema = {
   type: 'object' as const,
   properties: {
-    role: { type: 'string', description: 'ARIA role, e.g. textbox, combobox' },
-    name: { type: 'string', description: 'Accessible name of the field (label text)' },
+    role:  { type: 'string', description: 'ARIA role, e.g. textbox, combobox' },
+    name:  { type: 'string', description: 'Accessible name of the field (label text)' },
+    frame: { type: 'string', description: 'CSS selector of the iframe containing the field, e.g. "#loginFrame". Omit if the field is in the main frame.' },
   },
   required: ['role', 'name'],
 };
@@ -144,19 +145,19 @@ export async function login(
       async (name, input, pg) => {
         switch (name) {
           case LOGIN_TOOL.FILL_USERNAME:
-            await byRole(pg, input).fill(creds.username, { timeout: 5000 });
+            await byRole(pg, input, input.frame as string | undefined).fill(creds.username, { timeout: 5000 });
             track(`fill_username(${input.role} "${input.name}")`, 'success');
             return `filled ${input.role} "${input.name}" with username`;
           case LOGIN_TOOL.FILL_PASSWORD:
-            await byRole(pg, input).fill(creds.password, { timeout: 5000 });
+            await byRole(pg, input, input.frame as string | undefined).fill(creds.password, { timeout: 5000 });
             track(`fill_password(${input.role} "${input.name}")`, 'success');
             return `filled ${input.role} "${input.name}" with password`;
           case LOGIN_TOOL.TYPE_USERNAME:
-            await byRole(pg, input).pressSequentially(creds.username, { timeout: 5000 });
+            await byRole(pg, input, input.frame as string | undefined).pressSequentially(creds.username, { timeout: 5000 });
             track(`type_username(${input.role} "${input.name}")`, 'success');
             return `typed username into ${input.role} "${input.name}"`;
           case LOGIN_TOOL.TYPE_PASSWORD:
-            await byRole(pg, input).pressSequentially(creds.password, { timeout: 5000 });
+            await byRole(pg, input, input.frame as string | undefined).pressSequentially(creds.password, { timeout: 5000 });
             track(`type_password(${input.role} "${input.name}")`, 'success');
             return `typed password into ${input.role} "${input.name}"`;
           case LOGIN_TOOL.FILL:

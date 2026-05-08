@@ -103,16 +103,20 @@ export const BROWSER_TOOLS: Tool[] = [
 ];
 
 // Locates an element by ARIA role and accessible name from a tool input.
-export function byRole(page: Page, input: Record<string, unknown>) {
-  return page.getByRole(
+export function byRole(page: Page, input: Record<string, unknown>, frame?: string) {
+  const root = frame ? page.frameLocator(frame) : page;
+  return root.getByRole(
     input.role as Parameters<typeof page.getByRole>[0],
     { name: input.name as string },
   );
 }
 
-// SPAs don't fire a second 'load' event during in-app navigation; domcontentloaded is safe.
+// SPAs don't fire a second 'load' event during in-app navigation, so we can't use 'load'.
+// After domcontentloaded, also wait for networkidle so that SPA API calls (e.g. login
+// submission) complete before the snapshot is taken.
 async function afterClick(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 }
 
 export async function executeBrowserTool(
