@@ -35,13 +35,20 @@ After each action, the updated page state is provided automatically.${formatMemo
 }
 
 
+// Either (role + name) or selector must be provided. JSON Schema can't express
+// "one of two alternatives" as a required constraint, so required is left empty and
+// the mutual exclusivity is communicated to Claude via the field descriptions instead.
+// If Claude omits both, credLocator will call getByRole(undefined) and Playwright will
+// throw — that error is returned to Claude as a tool result so it can retry correctly.
 const credFieldSchema = {
   type: 'object' as const,
   properties: {
-    role: { type: 'string', description: 'ARIA role, e.g. textbox, combobox' },
-    name: { type: 'string', description: 'Accessible name of the field (label text)' },
+    role:     { type: 'string', description: 'ARIA role, e.g. textbox, combobox. Use with name to locate by accessibility tree. Provide either role+name or selector.' },
+    name:     { type: 'string', description: 'Accessible name of the field (label text). Required when using role.' },
+    selector: { type: 'string', description: 'CSS selector, e.g. "#userId". Use when the field has no accessible name and role+name matching fails.' },
+    frame:    { type: 'string', description: 'CSS selector of the iframe containing the field, e.g. "#loginFrame". Omit if the field is in the main frame.' },
   },
-  required: ['role', 'name'],
+  required: [],
 };
 
 const LOGIN_TOOLS: Tool[] = [
@@ -142,23 +149,37 @@ export async function login(
       buildSystemPrompt(notes),
       'The browser has navigated to the login page.',
       async (name, input, pg) => {
+        // Resolves the locator for a credential field. Some sites (e.g. Questrade) use
+        // inputs with no accessible name, so ARIA role/name matching fails — CSS selector
+        // is the fallback. Some sites (e.g. Schwab) embed the login form in an iframe,
+        // requiring frameLocator before any getByRole/locator call.
+        const credLocator = (i: Record<string, unknown>) => {
+          const frame = i.frame as string | undefined;
+          const root = frame ? pg.frameLocator(frame) : pg;
+          return i.selector
+            ? root.locator(i.selector as string)
+            : root.getByRole(i.role as Parameters<typeof pg.getByRole>[0], { name: i.name as string });
+        };
+        const credDesc = (i: Record<string, unknown>) =>
+          i.selector ? String(i.selector) : `${i.role} "${i.name}"`;
+
         switch (name) {
           case LOGIN_TOOL.FILL_USERNAME:
-            await byRole(pg, input).fill(creds.username, { timeout: 5000 });
-            track(`fill_username(${input.role} "${input.name}")`, 'success');
-            return `filled ${input.role} "${input.name}" with username`;
+            await credLocator(input).fill(creds.username, { timeout: 5000 });
+            track(`fill_username(${credDesc(input)})`, 'success');
+            return `filled ${credDesc(input)} with username`;
           case LOGIN_TOOL.FILL_PASSWORD:
-            await byRole(pg, input).fill(creds.password, { timeout: 5000 });
-            track(`fill_password(${input.role} "${input.name}")`, 'success');
-            return `filled ${input.role} "${input.name}" with password`;
+            await credLocator(input).fill(creds.password, { timeout: 5000 });
+            track(`fill_password(${credDesc(input)})`, 'success');
+            return `filled ${credDesc(input)} with password`;
           case LOGIN_TOOL.TYPE_USERNAME:
-            await byRole(pg, input).pressSequentially(creds.username, { timeout: 5000 });
-            track(`type_username(${input.role} "${input.name}")`, 'success');
-            return `typed username into ${input.role} "${input.name}"`;
+            await credLocator(input).pressSequentially(creds.username, { timeout: 5000 });
+            track(`type_username(${credDesc(input)})`, 'success');
+            return `typed username into ${credDesc(input)}`;
           case LOGIN_TOOL.TYPE_PASSWORD:
-            await byRole(pg, input).pressSequentially(creds.password, { timeout: 5000 });
-            track(`type_password(${input.role} "${input.name}")`, 'success');
-            return `typed password into ${input.role} "${input.name}"`;
+            await credLocator(input).pressSequentially(creds.password, { timeout: 5000 });
+            track(`type_password(${credDesc(input)})`, 'success');
+            return `typed password into ${credDesc(input)}`;
           case LOGIN_TOOL.FILL:
             await byRole(pg, input).fill(input.value as string, { timeout: 5000 });
             track(`fill(${input.role} "${input.name}")`, 'success');

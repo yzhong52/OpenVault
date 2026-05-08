@@ -7,8 +7,9 @@ export const institutions = sqliteTable('institutions', {
 });
 
 export const accounts = sqliteTable('accounts', {
-  id:                 text('id').primaryKey(),
+  id:                 integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }), // surrogate PK; used internally for FK references
   institutionId:      text('institution_id').notNull().references(() => institutions.id),
+  accountId:          text('account_id').notNull(), // raw account identifier as reported by the institution (e.g. last 4 digits); unique within an institution
   name:               text('name').notNull(),
   type:               text('type'),
   currency:           text('currency'),
@@ -18,7 +19,7 @@ export const accounts = sqliteTable('accounts', {
   // every dashboard load.
   latestDate:         text('latest_date'),
   latestAmountCents:  integer('latest_amount_cents'),
-});
+}, t => [uniqueIndex('accounts_institution_account').on(t.institutionId, t.accountId)]);
 
 export const syncs = sqliteTable('syncs', {
   id:            integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
@@ -28,7 +29,7 @@ export const syncs = sqliteTable('syncs', {
 
 export const balances = sqliteTable('balances', {
   id:          integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-  accountId:   text('account_id').notNull().references(() => accounts.id),
+  accountId:   integer('account_id', { mode: 'number' }).notNull().references(() => accounts.id),
   date:        text('date').notNull(),  // YYYY-MM-DD; one row per account per day
   amountCents: integer('amount_cents'),
 }, t => [uniqueIndex('balances_account_date').on(t.accountId, t.date)]);

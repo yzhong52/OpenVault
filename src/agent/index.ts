@@ -112,8 +112,9 @@ export async function runAgent<T>(
     // immediately after a click (e.g. clicking Log In) captures the pre-navigation DOM
     // because domcontentloaded fires before the new page finishes rendering — causing the
     // agent to see the login page again and incorrectly infer that MFA is needed.
-    // Timeout is intentionally short; if the page stays "busy" we snapshot anyway.
-    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+    // 8s covers slow SPA login API calls (e.g. Wealthsimple); if the page stays busy
+    // past that we snapshot anyway rather than blocking indefinitely.
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     let snap: string | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {

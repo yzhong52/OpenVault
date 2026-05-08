@@ -103,8 +103,11 @@ export const BROWSER_TOOLS: Tool[] = [
 ];
 
 // Locates an element by ARIA role and accessible name from a tool input.
-export function byRole(page: Page, input: Record<string, unknown>) {
-  return page.getByRole(
+// Pass frame when the target element is inside an iframe (e.g. Schwab's #lmsIframe).
+// Omit for elements in the main frame.
+export function byRole(page: Page, input: Record<string, unknown>, frame?: string) {
+  const root = frame ? page.frameLocator(frame) : page;
+  return root.getByRole(
     input.role as Parameters<typeof page.getByRole>[0],
     { name: input.name as string },
   );
