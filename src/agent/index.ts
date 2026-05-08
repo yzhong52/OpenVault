@@ -104,6 +104,7 @@ export async function runAgent<T>(
   logName: string,
   sensitiveValues: string[] = [],
   maxTurns: number = MAX_TURNS,
+  maxTokens: number = 1024,
 ): Promise<T> {
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
@@ -156,14 +157,17 @@ export async function runAgent<T>(
 
     const response = await getClient().messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system: systemPrompt,
       tools,
       tool_choice: { type: 'any' },
       messages,
     });
 
-    await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify(response.content, null, 2))}\n\`\`\`\n\n`);
+    await fs.appendFile(
+      logFile,
+      `\`\`\`json\n${redactSensitive(JSON.stringify(response, null, 2))}\n\`\`\`\n\n`,
+    );
 
     messages.push({ role: 'assistant', content: response.content });
 

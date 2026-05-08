@@ -102,10 +102,6 @@ accordingly. If the default range already covers this period, that is fine.
 4. If there is pagination (e.g. "Load more", "Next page", numbered pages), continue until you \
 have collected all transactions back to ${sinceDate}.
 5. Once you have everything, call ${REPORT_TRANSACTIONS} with the full list.
-   - "amount" must be a signed number: negative for money leaving the account (purchases, \
-withdrawals, fees), positive for money entering (deposits, refunds).
-   - "datetime" must be ISO 8601: YYYY-MM-DDTHH:MM:SS if the time is shown, YYYY-MM-DD if not.
-   - "transactionId" should be included only if the institution shows a reference number or ID.
 
 Do not navigate to other accounts. Do not log out.
 ${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
@@ -139,7 +135,8 @@ export async function fetchTransactions(
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
           track('report_transactions', 'success');
-          const txs = (input as { transactions: Transaction[] }).transactions;
+          const raw = (input as { transactions: Transaction[] }).transactions;
+          const txs = Array.isArray(raw) ? raw : [];
           return toolDone<Transaction[]>(txs, 'transactions recorded');
         }
 
@@ -164,6 +161,7 @@ export async function fetchTransactions(
       `conversation_transactions_${account.name.toLowerCase().replace(/\s+/g, '_')}`,
       [],
       MAX_TURNS,
+      8192,
     );
   } finally {
     if (events.length > 0) {
