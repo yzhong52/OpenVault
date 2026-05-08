@@ -1,7 +1,31 @@
 import { Command } from 'commander';
 import { openDb } from '../db';
-import { listAccounts, mergeAccounts } from '../db/storage';
+import { listAccounts, mergeAccounts, type AccountRow } from '../db/storage';
 import { printAccountsTable, formatCents, prompt, selectFromList } from './utils';
+
+function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitution: boolean }): string[] {
+  const items = rows.map(row => {
+    const bal = row.amountCents != null ? formatCents(row.amountCents) : '—';
+    return {
+      institution: row.institutionName,
+      name:        row.accountName,
+      type:        row.accountType ?? '—',
+      balance:     row.accountCurrency && bal !== '—' ? `${row.accountCurrency} ${bal}` : bal,
+    };
+  });
+  const w = {
+    institution: showInstitution ? Math.max(...items.map(i => i.institution.length)) : 0,
+    name:        Math.max(...items.map(i => i.name.length)),
+    type:        Math.max(...items.map(i => i.type.length)),
+    balance:     Math.max(...items.map(i => i.balance.length)),
+  };
+  return items.map(i => [
+    showInstitution ? i.institution.padEnd(w.institution) : null,
+    i.name.padEnd(w.name),
+    i.type.padEnd(w.type),
+    i.balance.padStart(w.balance),
+  ].filter(Boolean).join('  '));
+}
 
 export function makeAccountsCommand(): Command {
   const cmd = new Command('accounts').description('View stored account data');
@@ -50,13 +74,10 @@ export function makeAccountsCommand(): Command {
           return;
         }
 
-        const labels = rows.map(row => {
-          const bal = row.amountCents != null ? formatCents(row.amountCents) : '—';
-          const balance = row.accountCurrency && bal !== '—' ? `${row.accountCurrency} ${bal}` : bal;
-          return `${row.institutionName}  /  ${row.accountName}  (${row.accountType ?? '—'})  ${balance}`;
-        });
-
-        const srcIdx = await selectFromList(labels, 'Source account to merge FROM (will be deleted):');
+        const srcIdx = await selectFromList(
+          accountLabels(rows, { showInstitution: true }),
+          'Source account to merge FROM (will be deleted):',
+        );
 
         const src = rows[srcIdx];
         const tgtRows = rows.filter((r, i) => i !== srcIdx && r.institutionName === src.institutionName);
@@ -64,12 +85,10 @@ export function makeAccountsCommand(): Command {
           console.log(`  No other accounts found under ${src.institutionName}. Nothing to merge into.`);
           return;
         }
-        const tgtLabels = tgtRows.map(row => {
-          const bal = row.amountCents != null ? formatCents(row.amountCents) : '—';
-          const balance = row.accountCurrency && bal !== '—' ? `${row.accountCurrency} ${bal}` : bal;
-          return `${row.accountName}  (${row.accountType ?? '—'})  ${balance}`;
-        });
-        const tgtIdx = await selectFromList(tgtLabels, 'Target account to merge INTO:');
+        const tgtIdx = await selectFromList(
+          accountLabels(tgtRows, { showInstitution: false }),
+          'Target account to merge INTO:',
+        );
 
         const tgt = tgtRows[tgtIdx];
         console.log(`  Merge "${src.accountName}" (${src.institutionName})`);
