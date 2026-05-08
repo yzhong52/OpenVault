@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm';
+
+import { eq, desc } from 'drizzle-orm';
 import type { Account } from '../tasks/accounts';
 import { ACCOUNT_TYPES } from '../tasks/accounts';
 import { type Db } from '.';
@@ -161,4 +162,39 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
   }
 
   return result;
+}
+
+export function mergeAccounts(db: Db, sourceId: string, targetId: string): void {
+  db.transaction((tx) => {
+    const sourceBalances = tx
+      .select({ date: balances.date, amountCents: balances.amountCents })
+      .from(balances)
+      .where(eq(balances.accountId, sourceId))
+      .all();
+
+    for (const row of sourceBalances) {
+      tx.insert(balances)
+        .values({ accountId: targetId, date: row.date, amountCents: row.amountCents })
+        .onConflictDoNothing()
+        .run();
+    }
+
+    const latest = tx
+      .select({ date: balances.date, amountCents: balances.amountCents })
+      .from(balances)
+      .where(eq(balances.accountId, targetId))
+      .orderBy(desc(balances.date))
+      .limit(1)
+      .all();
+
+    if (latest.length > 0) {
+      tx.update(accountsTable)
+        .set({ latestDate: latest[0].date, latestAmountCents: latest[0].amountCents })
+        .where(eq(accountsTable.id, targetId))
+        .run();
+    }
+
+    tx.delete(balances).where(eq(balances.accountId, sourceId)).run();
+    tx.delete(accountsTable).where(eq(accountsTable.id, sourceId)).run();
+  });
 }
