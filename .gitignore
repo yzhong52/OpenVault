@@ -16,3 +16,6 @@ dist/
 
 # Local database
 *.db
+
+# Claude Code local settings (machine-specific overrides)
+.claude/settings.local.json
