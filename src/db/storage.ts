@@ -20,6 +20,7 @@ function normalizeType(raw: string | undefined): string | undefined {
 
 
 export interface AccountRow {
+  id: number;
   institutionName: string;
   accountName: string;
   accountType: string | null;
@@ -32,11 +33,12 @@ export interface AccountRow {
 export function listAccounts(db: Db): AccountRow[] {
   return db
     .select({
+      id:              accountsTable.id,
       institutionName: institutions.name,
       accountName:     accountsTable.name,
       accountType:     accountsTable.type,
       accountCurrency: accountsTable.currency,
-      accountId:       accountsTable.id,
+      accountId:       accountsTable.accountId,
       latestDate:      accountsTable.latestDate,
       amountCents:     accountsTable.latestAmountCents,
     })
@@ -71,28 +73,27 @@ export function saveSync(
       .run();
 
     for (const account of accountList) {
-      // institutionId prefix ensures global uniqueness — account names are only unique within an institution
-      const accountId = `${institutionId}/${account.accountId ?? account.name}`;
-
+      const rawAccountId = account.accountId ?? account.name;
       const amountCents = account.balance != null ? Math.round(account.balance * 100) : null;
 
-      tx.insert(accountsTable)
+      const { id: intId } = tx.insert(accountsTable)
         .values({
-          id: accountId, institutionId, name: account.name,
+          institutionId, accountId: rawAccountId, name: account.name,
           type: normalizeType(account.type), currency: account.currency,
           latestDate: today, latestAmountCents: amountCents,
         })
         .onConflictDoUpdate({
-          target: accountsTable.id,
+          target: [accountsTable.institutionId, accountsTable.accountId],
           set: {
             type: normalizeType(account.type), currency: account.currency,
             latestDate: today, latestAmountCents: amountCents,
           },
         })
-        .run();
+        .returning({ id: accountsTable.id })
+        .get();
 
       tx.insert(balances)
-        .values({ accountId, date: today, amountCents })
+        .values({ accountId: intId, date: today, amountCents })
         .onConflictDoUpdate({
           target: [balances.accountId, balances.date],
           set: { amountCents },
@@ -158,7 +159,7 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
   return result;
 }
 
-export function mergeAccounts(db: Db, sourceId: string, targetId: string): void {
+export function mergeAccounts(db: Db, sourceId: number, targetId: number): void {
   db.transaction((tx) => {
     const sourceBalances = tx
       .select({ date: balances.date, amountCents: balances.amountCents })

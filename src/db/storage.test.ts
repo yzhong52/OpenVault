@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { eq } from 'drizzle-orm';
 import * as path from 'path';
 import * as schema from './schema';
 import { getNetWorthHistory } from './storage';
@@ -23,8 +24,8 @@ describe('getNetWorthHistory', () => {
 
     db.insert(schema.accounts)
       .values([
-        { id: 'td/chequing', institutionId: 'td', name: 'Chequing', type: 'Checking', currency: 'CAD' },
-        { id: 'td/savings', institutionId: 'td', name: 'Savings', type: 'Savings', currency: 'CAD' },
+        { institutionId: 'td', accountId: 'chequing', name: 'Chequing', type: 'Checking', currency: 'CAD' },
+        { institutionId: 'td', accountId: 'savings',  name: 'Savings',  type: 'Savings',  currency: 'CAD' },
       ])
       .run();
   });
@@ -34,19 +35,25 @@ describe('getNetWorthHistory', () => {
   });
 
   it('carries forward previous balances for accounts not updated on a given day', () => {
+    const [chequing, savings] = db
+      .select({ id: schema.accounts.id })
+      .from(schema.accounts)
+      .orderBy(schema.accounts.accountId)
+      .all();
+
     db.insert(schema.balances)
       .values([
         // Day 1: Both accounts synced
-        { accountId: 'td/chequing', date: '2026-05-01', amountCents: 100000 }, // $1000
-        { accountId: 'td/savings',  date: '2026-05-01', amountCents: 200000 }, // $2000
-        
+        { accountId: chequing.id, date: '2026-05-01', amountCents: 100000 }, // $1000
+        { accountId: savings.id,  date: '2026-05-01', amountCents: 200000 }, // $2000
+
         // Day 2: Only chequing is synced (balance went down to $500)
         // Savings should carry forward its $2000 balance into Day 2's total
-        { accountId: 'td/chequing', date: '2026-05-02', amountCents: 50000 },
-        
+        { accountId: chequing.id, date: '2026-05-02', amountCents: 50000 },
+
         // Day 4: Both accounts synced again (Day 3 is completely missing from DB)
-        { accountId: 'td/chequing', date: '2026-05-04', amountCents: 60000 },  // $600
-        { accountId: 'td/savings',  date: '2026-05-04', amountCents: 210000 }, // $2100
+        { accountId: chequing.id, date: '2026-05-04', amountCents: 60000 },  // $600
+        { accountId: savings.id,  date: '2026-05-04', amountCents: 210000 }, // $2100
       ])
       .run();
 

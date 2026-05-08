@@ -43,19 +43,14 @@ export function makeAccountsCommand(): Command {
           return;
         }
 
-        // TODO: store accounts.id without the institution prefix and add a composite
-        // unique key on (institution_id, account_id) instead. Once done, remove this split.
-        const entries = rows.map(row => {
-          const dbIdPart = row.accountId.split('/').slice(1).join('/');
-          return {
-            institution: row.institutionName,
-            account:     row.accountName,
-            accountId:   dbIdPart !== row.accountName ? dbIdPart : undefined,
-            type:        row.accountType ?? '—',
-            currency:    row.accountCurrency ?? undefined,
-            balance:     row.amountCents != null ? formatCents(row.amountCents) : '—',
-          };
-        });
+        const entries = rows.map(row => ({
+          institution: row.institutionName,
+          account:     row.accountName,
+          accountId:   row.accountId !== row.accountName ? row.accountId : undefined,
+          type:        row.accountType ?? '—',
+          currency:    row.accountCurrency ?? undefined,
+          balance:     row.amountCents != null ? formatCents(row.amountCents) : '—',
+        }));
         printAccountsTable(entries, { demo: opts.demo, showInstitution: true });
       } finally {
         close();
@@ -101,7 +96,7 @@ export function makeAccountsCommand(): Command {
           return;
         }
 
-        mergeAccounts(db, src.accountId, tgt.accountId);
+        mergeAccounts(db, src.id, tgt.id);
         console.log(`  Done. "${src.accountName}" merged into "${tgt.accountName}".`);
       } finally {
         close();
