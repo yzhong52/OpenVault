@@ -34,21 +34,22 @@ Add an institution:
 npm run cli -- institution add
 ```
 
-Sync that institution:
+Sync accounts and balances:
 
 ```bash
-npm run cli -- sync --institution "TD"
+npm run cli -- accounts sync --institution "TD"
 ```
 
-List the latest stored balances:
+Fetch recent transactions:
+
+```bash
+npm run cli -- transactions sync --institution "TD"
+```
+
+List stored accounts and transactions:
 
 ```bash
 npm run cli -- accounts list
-```
-
-List recent transactions:
-
-```bash
 npm run cli -- transactions list
 ```
 
@@ -83,25 +84,24 @@ npm run cli -- institution add
 
 You'll be prompted for the institution name, login URL, username or email, and password. Credentials are stored in the macOS Keychain — you won't be asked again.
 
-**Sync all institutions:**
+**Sync accounts and balances:**
 
 ```bash
-npm run cli -- sync
+npm run cli -- accounts sync
+npm run cli -- accounts sync --institution "TD"   # one institution only
 ```
 
-Opens a real Chrome window, logs into each saved institution, extracts all accounts, balances, and the last 30 days of transactions, and saves them to a local SQLite database.
+Opens a real Chrome window, logs in, discovers all accounts and balances, and saves them to a local SQLite database.
 
-**Sync one institution:**
+**Fetch transactions:**
 
 ```bash
-npm run cli -- sync --institution "TD"
+npm run cli -- transactions sync                                        # last 30 days, all institutions
+npm run cli -- transactions sync --institution "TD" --days 90          # wider window
+npm run cli -- transactions sync --institution "TD" --accountId 1234   # one account only
 ```
 
-**Sync with a custom transaction lookback window:**
-
-```bash
-npm run cli -- sync --days 90
-```
+Reads the accounts already in the DB, navigates to each account's transaction history, and saves the results. Run `accounts sync` first if no accounts are stored yet.
 
 **List stored accounts and latest balances:**
 
@@ -113,11 +113,6 @@ npm run cli -- accounts list
 
 ```bash
 npm run cli -- transactions list
-```
-
-Filter by institution, account, or date range:
-
-```bash
 npm run cli -- transactions list --institution "TD" --account "Chequing" --days 7
 ```
 

@@ -8,9 +8,8 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 
 - `src/cli.ts` — CLI entry point; wires up all subcommands
 - `src/commands/institution.ts` — `institution add` command
-- `src/commands/sync.ts` — `sync` command
-- `src/commands/accounts.ts` — `accounts list` command
-- `src/commands/transactions.ts` — `transactions list` command
+- `src/commands/accounts.ts` — `accounts sync`, `accounts list`, `accounts merge` commands
+- `src/commands/transactions.ts` — `transactions sync`, `transactions list` commands
 - `src/commands/config.ts` — `config gmail` command
 - `src/commands/utils.ts` — shared CLI helpers: `prompt`, `promptPassword`, `readInstitutions`, `writeInstitutions`
 - `src/keychain.ts` — macOS Keychain helpers
@@ -29,15 +28,17 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 ## Running
 
 ```bash
-npm run cli -- institution add                       # Add an institution (saves credentials to Keychain)
-npm run cli -- sync                                  # Sync all institutions (accounts + last 30 days of transactions)
-npm run cli -- sync --institution TD                 # Sync a single institution by name
-npm run cli -- sync --days 90                        # Sync with a 90-day transaction lookback
-npm run cli -- accounts list                         # List all stored accounts and latest balances
-npm run cli -- transactions list                     # List transactions (last 30 days)
-npm run cli -- transactions list --institution TD    # Filter by institution
-npm run cli -- transactions list --days 7            # Limit to last 7 days
-npm run cli -- config gmail                          # Configure Gmail for automatic MFA
+npm run cli -- institution add                                        # Add an institution (saves credentials to Keychain)
+npm run cli -- accounts sync                                          # Sync all accounts and balances
+npm run cli -- accounts sync --institution TD                         # Sync a single institution by name
+npm run cli -- accounts list                                          # List all stored accounts and latest balances
+npm run cli -- transactions sync                                      # Fetch transactions (last 30 days) for all accounts
+npm run cli -- transactions sync --institution TD --days 90           # Fetch 90 days for one institution
+npm run cli -- transactions sync --institution TD --accountId 1234    # Fetch transactions for one account only
+npm run cli -- transactions list                                      # List stored transactions (last 30 days)
+npm run cli -- transactions list --institution TD                     # Filter by institution
+npm run cli -- transactions list --days 7                             # Limit to last 7 days
+npm run cli -- config gmail                                           # Configure Gmail for automatic MFA
 ```
 
 ## Architecture of login.ts

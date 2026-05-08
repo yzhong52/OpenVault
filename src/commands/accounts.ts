@@ -1,7 +1,11 @@
 import { Command } from 'commander';
+import { login } from '../tasks/login';
+import { exploreAccounts, type AccountType } from '../tasks/accounts';
+import { createSession } from '../agent';
+import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
-import { listAccounts, mergeAccounts, type AccountRow } from '../db/storage';
-import { printAccountsTable, formatCents, prompt, selectFromList } from './utils';
+import { saveSync, listAccounts, mergeAccounts, type AccountRow } from '../db/storage';
+import { prompt, readInstitutions, printAccountsTable, formatCents, selectFromList, launchBrowser } from './utils';
 
 function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitution: boolean }): string[] {
   const items = rows.map(row => {
@@ -28,7 +32,83 @@ function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitutio
 }
 
 export function makeAccountsCommand(): Command {
-  const cmd = new Command('accounts').description('View stored account data');
+  const cmd = new Command('accounts').description('Sync and view account data');
+
+  cmd
+    .command('sync')
+    .description('Login and sync all accounts and balances')
+    .option('-i, --institution <name>', 'Only sync this institution (case-insensitive)')
+    .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
+    .option('--demo', 'Hide sensitive data by randomizing balances and account numbers')
+    .action(async (opts: { institution?: string; verbose: boolean; demo: boolean }) => {
+      if (opts.verbose) process.env.VERBOSE = '1';
+      let institutions = await readInstitutions();
+      if (opts.institution) {
+        const filter = opts.institution.toLowerCase();
+        institutions = institutions.filter(i => i.name.toLowerCase() === filter);
+        if (institutions.length === 0) {
+          console.log(
+            `No institution named "${opts.institution}". Run: npm run cli -- institution add`,
+          );
+          return;
+        }
+      }
+      if (institutions.length === 0) {
+        console.log('No institutions saved. Run: npm run cli -- institution add');
+        return;
+      }
+
+      const { db, close } = openDb();
+      const context = await launchBrowser();
+      try {
+        const page = context.pages()[0] ?? await context.newPage();
+        for (const inst of institutions) {
+          const password = keychainLoad(inst.name, inst.username);
+          if (!password) {
+            console.warn(
+              `No password found in Keychain for ${inst.name} (${inst.username}), skipping.`,
+            );
+            continue;
+          }
+
+          console.log(`\n🤖 Syncing ${inst.name}...`);
+          const sessionDir = await createSession(inst.url);
+          await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
+
+          const existingAccountsMsg = listAccounts(db)
+            .filter(a => a.institutionName === inst.name)
+            .map(a => {
+              const dbIdPart = a.accountId.split('/').slice(1).join('/');
+              const accountId = dbIdPart !== a.accountName ? dbIdPart : undefined;
+              return {
+                name: a.accountName,
+                accountId,
+                type: (a.accountType ?? undefined) as AccountType | undefined,
+                currency: a.accountCurrency ?? undefined,
+              };
+            });
+
+          const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccountsMsg);
+          saveSync(db, inst.name, inst.url, accounts);
+
+          console.log(`\n${inst.name} accounts:`);
+          printAccountsTable(accounts.map(a => ({
+            institution: inst.name,
+            account:     a.name,
+            accountId:   a.accountId,
+            type:        a.type ?? '—',
+            currency:    a.currency ?? undefined,
+            balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
+          })), { demo: opts.demo, showInstitution: false });
+        }
+      } catch (err) {
+        console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        close();
+        await prompt('\nPress Enter to close... ');
+        await context.close();
+      }
+    });
 
   cmd
     .command('list')
@@ -39,7 +119,7 @@ export function makeAccountsCommand(): Command {
       try {
         const rows = listAccounts(db);
         if (rows.length === 0) {
-          console.log('No accounts found. Run: npm run cli -- sync');
+          console.log('No accounts found. Run: npm run cli -- accounts sync');
           return;
         }
 
