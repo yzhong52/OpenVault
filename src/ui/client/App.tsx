@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
 import {
-  fetchAccounts, fetchNetWorth, demoModeFromUrl,
-  type AccountRow, type NetWorthPoint, type DemoMode,
+  fetchAccounts, fetchNetWorth, fetchTransactions, demoModeFromUrl,
+  type AccountRow, type NetWorthPoint, type TransactionRow, type DemoMode,
 } from './api';
+import { Sidebar, type Page } from './Sidebar';
+import { Dashboard } from './Dashboard';
+import { AccountsPage } from './AccountsTable';
+import { TransactionsPage } from './TransactionsPage';
+
+const PATHS: Record<Page, string> = {
+  dashboard: '/', accounts: '/accounts', transactions: '/transactions',
+};
+const PAGES: Record<string, Page> = {
+  '/': 'dashboard', '/accounts': 'accounts', '/transactions': 'transactions',
+};
 
 const DEMO_STORAGE_KEY = 'openvault:demo';
+
+function pageFromPath(): Page {
+  return PAGES[window.location.pathname] ?? 'dashboard';
+}
 
 function loadDemo(): DemoMode {
   const stored = localStorage.getItem(DEMO_STORAGE_KEY) as DemoMode | null;
@@ -16,32 +31,21 @@ function saveDemo(demo: DemoMode) {
   if (demo) localStorage.setItem(DEMO_STORAGE_KEY, demo);
   else localStorage.removeItem(DEMO_STORAGE_KEY);
 }
-import { Sidebar } from './Sidebar';
-import { Dashboard } from './Dashboard';
-import { AccountsPage } from './AccountsTable';
-
-type Page = 'dashboard' | 'accounts';
-
-const PATHS: Record<Page, string> = { dashboard: '/', accounts: '/accounts' };
-const PAGES: Record<string, Page> = { '/': 'dashboard', '/accounts': 'accounts' };
-
-function pageFromPath(): Page {
-  return PAGES[window.location.pathname] ?? 'dashboard';
-}
 
 export function App() {
-  const [accounts, setAccounts] = useState<AccountRow[]>([]);
-  const [netWorth, setNetWorth] = useState<NetWorthPoint[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
-  const [page,     setPage]     = useState<Page>(pageFromPath);
-  const [demo,     setDemo]     = useState<DemoMode>(loadDemo);
+  const [accounts,     setAccounts]     = useState<AccountRow[]>([]);
+  const [netWorth,     setNetWorth]     = useState<NetWorthPoint[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
+  const [page,         setPage]         = useState<Page>(pageFromPath);
+  const [demo,         setDemo]         = useState<DemoMode>(loadDemo);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchAccounts(demo), fetchNetWorth(demo)])
-      .then(([accs, hist]) => { setAccounts(accs); setNetWorth(hist); })
+    Promise.all([fetchAccounts(demo), fetchNetWorth(demo), fetchTransactions(demo)])
+      .then(([accs, hist, txs]) => { setAccounts(accs); setNetWorth(hist); setTransactions(txs); })
       .catch(err => { console.error(err); setError(err.message); })
       .finally(() => setLoading(false));
   }, [demo]);
@@ -60,7 +64,7 @@ export function App() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar page={page} setPage={navigate} demo={demo} setDemo={d => { saveDemo(d); setDemo(d); }}/>
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 60 }}>
         {loading && (
@@ -74,10 +78,13 @@ export function App() {
           </div>
         )}
         {!loading && !error && page === 'dashboard' && (
-          <Dashboard accounts={accounts} history={netWorth}/>
+          <Dashboard accounts={accounts} history={netWorth} transactions={transactions} onViewAll={() => navigate('transactions')}/>
         )}
         {!loading && !error && page === 'accounts' && (
           <AccountsPage accounts={accounts}/>
+        )}
+        {!loading && !error && page === 'transactions' && (
+          <TransactionsPage transactions={transactions}/>
         )}
       </main>
     </div>
