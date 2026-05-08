@@ -7,9 +7,7 @@ import { listAccounts, getNetWorthHistory } from '../db/storage';
 
 const app = new Hono();
 
-const isDemo = process.argv.includes('--demo');
-
-// In demo mode, we assign a completely random stable balance ($5k - $150k) to each account 
+// In demo mode, we assign a completely random stable balance ($5k - $150k) to each account
 // to entirely decouple from real values and protect privacy.
 const demoBalances = new Map<string, number>();
 
@@ -32,6 +30,7 @@ app.get('/api/accounts', (c) => {
   try {
     let accounts = listAccounts(db);
 
+    const isDemo = c.req.query('demo') === '1';
     if (isDemo) {
       accounts = accounts.map(a => ({
         ...a,
@@ -51,6 +50,7 @@ app.get('/api/net-worth', (c) => {
   try {
     let history = getNetWorthHistory(db);
 
+    const isDemo = c.req.query('demo') === '1';
     if (isDemo && history.length > 0) {
       // Calculate the sum of all fake accounts to anchor the end of our fake chart,
       // guaranteeing the net worth chart perfectly matches the account table total
@@ -117,7 +117,7 @@ app.get('/', (c) => {
 });
 
 const port = 3000;
-console.log(`Starting OpenVault UI server on http://localhost:${port}${isDemo ? ' (DEMO MODE)' : ''}`);
+console.log(`Starting OpenVault UI server on http://localhost:${port}`);
 
 serve({
   fetch: app.fetch,
