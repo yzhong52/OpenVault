@@ -4,7 +4,7 @@ interface IconProps { name: string; size?: number; }
 
 export function Icon({ name, size = 16 }: IconProps) {
   const icons: Record<string, React.ReactNode> = {
-    dashboard: (
+    overview: (
       <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
         <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".9"/>
         <rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/>

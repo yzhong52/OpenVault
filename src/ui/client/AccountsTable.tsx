@@ -9,7 +9,7 @@ export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
   const institutions = Array.from(new Set(accounts.map(a => a.institutionName)));
 
   return (
-    <div style={{ padding: '32px 36px', maxWidth: 900 }}>
+    <div style={{ padding: '32px 36px', maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>Accounts</h1>
         <p style={{ fontSize: 14, color: 'oklch(0.55 0.01 260)', marginTop: 3 }}>

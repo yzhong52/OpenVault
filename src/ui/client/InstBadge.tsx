@@ -15,14 +15,14 @@ export function InstBadge({ name, size = 28 }: Props) {
 
   if (logoUrl && !failed) {
     return (
-      <div style={{ ...containerStyle, background: '#fff', border: '1px solid oklch(0.91 0.005 260)' }}>
+      <div style={{ ...containerStyle }}>
         <img
           src={logoUrl}
           alt={name}
-          width={Math.round(size * 0.72)}
-          height={Math.round(size * 0.72)}
+          width={size}
+          height={size}
           onError={() => setFailed(true)}
-          style={{ objectFit: 'contain', display: 'block' }}
+          style={{ objectFit: 'cover', display: 'block' }}
         />
       </div>
     );

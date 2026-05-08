@@ -9,7 +9,7 @@ interface SidebarProps {
 }
 
 const NAV: { id: Page; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'dashboard', label: 'Overview', icon: 'overview' },
   { id: 'accounts',  label: 'Accounts',  icon: 'accounts'  },
 ];
 

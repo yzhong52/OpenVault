@@ -7,11 +7,20 @@ import { InstBadge } from './InstBadge';
 
 const ACCENT = 260;
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub, accent }: {
+  label: string; value: string; sub?: string; accent?: 'green' | 'red';
+}) {
+  const borderColor = accent === 'green' ? 'oklch(0.88 0.08 145)'
+    : accent === 'red'   ? 'oklch(0.88 0.08 20)'
+    : 'oklch(0.91 0.005 260)';
+  const valueColor = accent === 'green' ? 'oklch(0.42 0.14 145)'
+    : accent === 'red'   ? 'oklch(0.48 0.15 20)'
+    : 'oklch(0.15 0.01 260)';
+
   return (
     <div style={{
       background: '#fff', borderRadius: 12,
-      border: '1px solid oklch(0.91 0.005 260)',
+      border: `1px solid ${borderColor}`,
       padding: '20px 24px', flex: 1, minWidth: 0,
     }}>
       <div style={{
@@ -20,7 +29,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
       }}>{label}</div>
       <div style={{
         fontFamily: "'DM Mono', monospace", fontSize: 26, fontWeight: 500,
-        letterSpacing: '-0.03em', marginBottom: 4,
+        letterSpacing: '-0.03em', marginBottom: 4, color: valueColor,
       }}>{value}</div>
       {sub && <div style={{ fontSize: 12.5, color: 'oklch(0.55 0.01 260)' }}>{sub}</div>}
     </div>
@@ -44,10 +53,25 @@ interface Props {
   history: NetWorthPoint[];
 }
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function formatDate(d: Date) {
+  const day = d.getDate();
+  const suffix = [, 'st', 'nd', 'rd'][day % 100 > 10 && day % 100 < 14 ? 0 : day % 10] ?? 'th';
+  return d.toLocaleDateString('en-CA', { month: 'long' }) + ' ' + day + suffix + ', ' + d.getFullYear();
+}
+
 export function Dashboard({ accounts, history }: Props) {
+  const assetAccounts = accounts.filter(a => (a.amountCents ?? 0) > 0);
+  const debtAccounts  = accounts.filter(a => (a.amountCents ?? 0) < 0);
   const netWorthCents = accounts.reduce((s, a) => s + (a.amountCents ?? 0), 0);
-  const assetsCents   = accounts.filter(a => (a.amountCents ?? 0) > 0).reduce((s, a) => s + (a.amountCents ?? 0), 0);
-  const debtCents     = accounts.filter(a => (a.amountCents ?? 0) < 0).reduce((s, a) => s + (a.amountCents ?? 0), 0);
+  const assetsCents   = assetAccounts.reduce((s, a) => s + (a.amountCents ?? 0), 0);
+  const debtCents     = debtAccounts.reduce((s, a) => s + (a.amountCents ?? 0), 0);
   const chartData     = toMonthly(history);
   const institutions  = Array.from(new Set(accounts.map(a => a.institutionName)));
 
@@ -65,16 +89,16 @@ export function Dashboard({ accounts, history }: Props) {
   };
 
   return (
-    <div style={{ padding: '32px 36px', maxWidth: 1100 }}>
+    <div style={{ padding: '32px 36px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>Dashboard</h1>
-        <p style={{ fontSize: 14, color: 'oklch(0.55 0.01 260)', marginTop: 3 }}>Your financial snapshot.</p>
+        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>{greeting()}</h1>
+        <p style={{ fontSize: 14, color: 'oklch(0.55 0.01 260)', marginTop: 3 }}>Here's your financial snapshot for {formatDate(new Date())}.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 28 }}>
         <StatCard label="Net Worth"    value={fmtCents(netWorthCents)} sub={`${accounts.length} account${accounts.length !== 1 ? 's' : ''}`}/>
-        <StatCard label="Total Assets" value={fmtCents(assetsCents)}/>
-        <StatCard label="Total Debt"   value={fmtCents(Math.abs(debtCents))}/>
+        <StatCard label="Total Assets" value={fmtCents(assetsCents)} sub={`${assetAccounts.length} account${assetAccounts.length !== 1 ? 's' : ''}`} accent="green"/>
+        <StatCard label="Total Debt"   value={fmtCents(Math.abs(debtCents))} sub={`${debtAccounts.length} account${debtAccounts.length !== 1 ? 's' : ''}`} accent="red"/>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
