@@ -8,7 +8,7 @@ import { saveTransactions, listAccounts, listTransactions, type TransactionRow }
 import type { Transaction } from '../tasks/transactions';
 import { prompt, readInstitutions, formatCents, launchBrowser } from './utils';
 
-function printNewTransactionsTable(txs: Transaction[]): void {
+export function printNewTransactionsTable(txs: Transaction[]): void {
   const entries = txs.map(t => ({
     date:        t.datetime.includes('T') ? t.datetime.slice(0, 16).replace('T', ' ') : t.datetime,
     description: t.description,

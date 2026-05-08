@@ -31,6 +31,39 @@ function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitutio
   ].filter(Boolean).join('  '));
 }
 
+export function printAccountSyncDiff(
+  institutionName: string,
+  diff: AccountSyncDiff,
+  opts: { demo?: boolean } = {},
+): void {
+  if (diff.added.length > 0) {
+    console.log(`  + ${diff.added.length} new account(s) discovered:`);
+    printAccountsTable(diff.added.map(a => ({
+      institution: institutionName,
+      account:     a.name,
+      accountId:   a.accountId,
+      type:        a.type ?? '—',
+      currency:    a.currency ?? undefined,
+      balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
+    })), { demo: opts.demo ?? false, showInstitution: false });
+  }
+  if (diff.updated.length > 0) {
+    console.log(`  ~ ${diff.updated.length} account(s) updated:`);
+    for (const { account, changes } of diff.updated)
+      console.log(`      ${account.name}: ${changes.join(', ')}`);
+    console.log();
+  }
+  if (diff.missing.length > 0) {
+    console.log(`  - ${diff.missing.length} account(s) no longer found`);
+    console.log(`    (kept for historical records; delete manually if desired)`);
+    for (const a of diff.missing) console.log(`      ${a.accountName}`);
+    console.log();
+  }
+  if (diff.added.length === 0 && diff.updated.length === 0 && diff.missing.length === 0) {
+    console.log(`  (no changes for ${institutionName})`);
+  }
+}
+
 export function makeAccountsCommand(): Command {
   const cmd = new Command('accounts').description('Sync and view account data');
 
@@ -92,38 +125,7 @@ export function makeAccountsCommand(): Command {
           const diff: AccountSyncDiff = saveSync(db, inst.name, inst.url, accounts);
 
           console.log();
-          if (diff.added.length > 0) {
-            console.log(`  + ${diff.added.length} new account(s) discovered:`);
-            printAccountsTable(diff.added.map(a => ({
-              institution: inst.name,
-              account:     a.name,
-              accountId:   a.accountId,
-              type:        a.type ?? '—',
-              currency:    a.currency ?? undefined,
-              balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
-            })), { demo: opts.demo, showInstitution: false });
-          }
-
-          if (diff.updated.length > 0) {
-            console.log(`  ~ ${diff.updated.length} account(s) updated:`);
-            for (const { account, changes } of diff.updated) {
-              console.log(`      ${account.name}: ${changes.join(', ')}`);
-            }
-            console.log();
-          }
-
-          if (diff.missing.length > 0) {
-            console.log(`  - ${diff.missing.length} account(s) no longer found`);
-            console.log(`    (kept for historical records; delete manually if desired)`);
-            for (const a of diff.missing) {
-              console.log(`      ${a.accountName}`);
-            }
-            console.log();
-          }
-
-          if (diff.added.length === 0 && diff.updated.length === 0 && diff.missing.length === 0) {
-            console.log(`  (no changes for ${inst.name})`);
-          }
+          printAccountSyncDiff(inst.name, diff, { demo: opts.demo });
         }
       } catch (err) {
         console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
