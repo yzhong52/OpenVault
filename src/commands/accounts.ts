@@ -58,17 +58,20 @@ export function makeAccountsCommand(): Command {
 
         const srcIdx = await selectFromList(labels, 'Source account to merge FROM (will be deleted):');
 
-        let tgtIdx: number;
-        do {
-          tgtIdx = await selectFromList(labels, 'Target account to merge INTO:');
-          if (tgtIdx === srcIdx)
-            console.log('  Source and target must be different. Try again.');
-          else if (rows[tgtIdx].institutionName !== rows[srcIdx].institutionName)
-            console.log('  Cannot merge accounts across institutions. Try again.');
-        } while (tgtIdx === srcIdx || rows[tgtIdx].institutionName !== rows[srcIdx].institutionName);
-
         const src = rows[srcIdx];
-        const tgt = rows[tgtIdx];
+        const tgtRows = rows.filter((r, i) => i !== srcIdx && r.institutionName === src.institutionName);
+        if (tgtRows.length === 0) {
+          console.log(`  No other accounts found under ${src.institutionName}. Nothing to merge into.`);
+          return;
+        }
+        const tgtLabels = tgtRows.map(row => {
+          const bal = row.amountCents != null ? formatCents(row.amountCents) : '—';
+          const balance = row.accountCurrency && bal !== '—' ? `${row.accountCurrency} ${bal}` : bal;
+          return `${row.accountName}  (${row.accountType ?? '—'})  ${balance}`;
+        });
+        const tgtIdx = await selectFromList(tgtLabels, 'Target account to merge INTO:');
+
+        const tgt = tgtRows[tgtIdx];
         console.log(`  Merge "${src.accountName}" (${src.institutionName})`);
         console.log(`    into "${tgt.accountName}" (${tgt.institutionName})?`);
         console.log(`  The source account will be permanently deleted.`);
