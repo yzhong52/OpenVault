@@ -5,7 +5,7 @@ import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
 import { saveSync, listAccounts } from '../db/storage';
-import { prompt, readInstitutions, printAccountsTable, launchBrowser } from './utils';
+import { prompt, readInstitutions, printAccountsTable, formatCents, launchBrowser } from './utils';
 
 export function makeSyncCommand(): Command {
   return new Command('sync')
@@ -77,7 +77,7 @@ export function makeSyncCommand(): Command {
             accountId:   a.accountId,
             type:        a.type ?? '—',
             currency:    a.currency ?? undefined,
-            balance:     a.balance ?? '—',
+            balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
           // institution already shown as header above
           })), { demo: opts.demo, showInstitution: false });
         }
