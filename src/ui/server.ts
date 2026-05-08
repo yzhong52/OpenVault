@@ -128,10 +128,12 @@ const demoCachedTxs = new Map<string, TransactionRow[]>();
 function generateDemoTransactions(demo: DemoMode): TransactionRow[] {
   if (demoCachedTxs.has(demo)) return demoCachedTxs.get(demo)!;
 
+  // Irregular day offsets: some days have 2-3 transactions, some are skipped
+  const DAY_OFFSETS = [0, 0, 1, 3, 3, 3, 5, 7, 8, 8, 10, 12, 12, 15, 17, 17, 19, 21, 21, 24];
   const now = new Date();
   const txs: TransactionRow[] = DEMO_MERCHANTS.map((m, i) => {
     const date = new Date(now);
-    date.setDate(date.getDate() - Math.floor(i * 1.8));
+    date.setDate(date.getDate() - DAY_OFFSETS[i]);
     const scale = demo === 'poor' && m.cents > 0 ? 0.35 : 1;
     return {
       id: -(i + 1),

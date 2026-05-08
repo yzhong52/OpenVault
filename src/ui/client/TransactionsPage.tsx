@@ -49,7 +49,7 @@ export function TransactionsPage({ transactions }: Props) {
             <div key={day}>
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-                marginBottom: 8,
+                marginBottom: 8, padding: '0 12px',
               }}>
                 <div style={{
                   fontSize: 12, fontWeight: 600, letterSpacing: '0.04em',

@@ -3,12 +3,10 @@ import {
   fetchAccounts, fetchNetWorth, fetchTransactions, demoModeFromUrl,
   type AccountRow, type NetWorthPoint, type TransactionRow, type DemoMode,
 } from './api';
-import { Sidebar } from './Sidebar';
+import { Sidebar, type Page } from './Sidebar';
 import { Dashboard } from './Dashboard';
 import { AccountsPage } from './AccountsTable';
 import { TransactionsPage } from './TransactionsPage';
-
-type Page = 'dashboard' | 'accounts' | 'transactions';
 
 const PATHS: Record<Page, string> = {
   dashboard: '/', accounts: '/accounts', transactions: '/transactions',

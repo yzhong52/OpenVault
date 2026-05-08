@@ -1,7 +1,7 @@
 import { Icon } from './Icons';
 import { type DemoMode } from './api';
 
-type Page = 'dashboard' | 'accounts' | 'transactions';
+export type Page = 'dashboard' | 'accounts' | 'transactions';
 
 interface SidebarProps {
   page: Page;
