@@ -1,24 +1,11 @@
-import React from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import type { AccountRow, NetWorthPoint } from './api';
-import { getInstColor, getInstAbbr, fmtCents, fmtCentsK } from './utils';
+import { getInstColor, fmtCents, fmtCentsK } from './utils';
+import { InstBadge } from './InstBadge';
 
 const ACCENT = 260;
-
-function InstBadge({ name, size = 28 }: { name: string; size?: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: 8,
-      background: getInstColor(name), color: '#fff',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.32, fontWeight: 600, letterSpacing: '-0.02em', flexShrink: 0,
-    }}>
-      {getInstAbbr(name)}
-    </div>
-  );
-}
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (

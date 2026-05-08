@@ -74,6 +74,17 @@ app.get('/api/net-worth', (c) => {
   }
 });
 
+app.get('/icons/:file', async (c) => {
+  const file = c.req.param('file');
+  const iconPath = path.join(process.cwd(), 'src/ui/public/icons', file);
+  try {
+    const content = await fs.readFile(iconPath);
+    return c.body(content as unknown as ReadableStream, 200, { 'Content-Type': 'image/png' });
+  } catch {
+    return c.notFound();
+  }
+});
+
 app.get('/dist/bundle.js', async (c) => {
   const bundlePath = path.join(process.cwd(), 'dist/ui/bundle.js');
   try {

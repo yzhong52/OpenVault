@@ -1,20 +1,8 @@
 import { useState } from 'react';
 import type { AccountRow } from './api';
-import { getInstColor, getInstAbbr, fmtCents } from './utils';
+import { fmtCents } from './utils';
 import { Icon } from './Icons';
-
-function InstBadge({ name, size = 28 }: { name: string; size?: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: 8,
-      background: getInstColor(name), color: '#fff',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.32, fontWeight: 600, letterSpacing: '-0.02em', flexShrink: 0,
-    }}>
-      {getInstAbbr(name)}
-    </div>
-  );
-}
+import { InstBadge } from './InstBadge';
 
 export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);

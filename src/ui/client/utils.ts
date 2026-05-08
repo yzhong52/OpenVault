@@ -1,3 +1,38 @@
+const INST_ICONS: Record<string, string> = {
+  'questrade': 'questrade.png',
+  'schwab': 'schwab.png',
+  'charles schwab': 'schwab.png',
+  'td': 'td.png',
+  'td bank': 'td.png',
+  'tangerine': 'tangerine.png',
+  'wealthsimple': 'wealthsimple.png',
+  'rbc': 'rbc.png',
+  'royal bank': 'rbc.png',
+  'bmo': 'bmo.png',
+  'bank of montreal': 'bmo.png',
+  'cibc': 'cibc.png',
+  'scotiabank': 'scotiabank.png',
+  'national bank': 'national-bank.png',
+  'simplii': 'simplii.png',
+  'desjardins': 'desjardins.png',
+  'eq bank': 'eq-bank.png',
+  'fidelity': 'fidelity.png',
+  'vanguard': 'vanguard.png',
+  'interactive brokers': 'interactive-brokers.png',
+  'bank of america': 'bank-of-america.png',
+  'wells fargo': 'wells-fargo.png',
+  'chase': 'chase.png',
+  'ally': 'ally.png',
+};
+
+export function getInstLogoUrl(name: string): string | null {
+  const lower = name.toLowerCase().trim();
+  const file = INST_ICONS[lower]
+    ?? Object.entries(INST_ICONS).find(([k]) => lower.includes(k))?.[1]
+    ?? null;
+  return file ? `/icons/${file}` : null;
+}
+
 const PALETTE = [
   '#1a5276', '#00b4a0', '#e84b4b', '#f47c30', '#7c5cbf',
   '#2ecc71', '#2980b9', '#c0392b', '#d35400', '#8e44ad',
