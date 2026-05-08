@@ -103,7 +103,7 @@ export async function runAgent<T>(
   sessionDir: string,
   logName: string,
   sensitiveValues: string[] = [],
-  maxTurns: number = MAX_TURNS,
+  maxTurns: number,
   maxTokens: number,
 ): Promise<T> {
   let snapCount = 0;
