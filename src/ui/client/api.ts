@@ -3,6 +3,7 @@ export interface AccountRow {
   accountName: string;
   accountType: string | null;
   accountCurrency: string | null;
+  accountId: string;
   latestDate: string | null;
   amountCents: number | null;
 }

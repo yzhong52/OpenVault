@@ -93,18 +93,20 @@ app.get('/', (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenVault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f9fafb;
-      color: #111827;
-      margin: 0;
-      padding: 40px 20px;
+      font-family: 'DM Sans', sans-serif;
+      background: oklch(0.975 0.004 60);
+      color: oklch(0.15 0.01 260);
+      -webkit-font-smoothing: antialiased;
     }
-    #root {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: oklch(0.85 0.005 260); border-radius: 3px; }
   </style>
 </head>
 <body>
