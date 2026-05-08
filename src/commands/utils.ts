@@ -132,8 +132,11 @@ export function selectFromList(items: string[], label: string): Promise<number> 
   const render = (first: boolean) => {
     if (!first) process.stdout.write(`\x1b[${items.length}A`);
     for (let i = 0; i < items.length; i++) {
-      const marker = i === selected ? '>' : ' ';
-      process.stdout.write(`\x1b[2K  ${marker} ${items[i]}\n`);
+      if (i === selected) {
+        process.stdout.write(`\x1b[2K\x1b[7m  > ${items[i]}\x1b[0m\n`);
+      } else {
+        process.stdout.write(`\x1b[2K    ${items[i]}\n`);
+      }
     }
   };
 
