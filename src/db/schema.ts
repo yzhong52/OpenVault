@@ -37,8 +37,8 @@ export const balances = sqliteTable('balances', {
 export const transactions = sqliteTable('transactions', {
   id:            integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
   accountId:     integer('account_id', { mode: 'number' }).notNull().references(() => accounts.id),
-  transactionId: text('transaction_id').notNull(),  // institution ID or sha256 hash of (accountId:date:description:amountCents)
-  date:          text('date').notNull(),             // YYYY-MM-DD
+  transactionId: text('transaction_id').notNull(),  // institution ID or sha256 hash of (accountId:datetime:description:amountCents)
+  datetime:      text('datetime').notNull(),         // ISO 8601: YYYY-MM-DDTHH:MM:SS when time is known, YYYY-MM-DD otherwise
   description:   text('description').notNull(),
   amountCents:   integer('amount_cents').notNull(),  // signed; negative = debit
   currency:      text('currency'),

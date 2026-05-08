@@ -10,7 +10,7 @@ import {
 import type { Account } from './accounts';
 
 export interface Transaction {
-  date: string;           // YYYY-MM-DD
+  datetime: string;       // ISO 8601: YYYY-MM-DDTHH:MM:SS when time is known, YYYY-MM-DD otherwise
   description: string;
   amount: number;         // signed float; negative = debit
   transactionId?: string; // institution-provided ID if visible
@@ -34,9 +34,12 @@ const REPORT_TOOL: Tool = {
         items: {
           type: 'object',
           properties: {
-            date: {
+            datetime: {
               type: 'string',
-              description: 'Transaction date in YYYY-MM-DD format.',
+              description:
+                'Transaction date and time in ISO 8601 format. Use YYYY-MM-DDTHH:MM:SS if the ' +
+                'time is shown (e.g. "Jan 15, 2024 2:30 PM" → "2024-01-15T14:30:00"). ' +
+                'Use YYYY-MM-DD if only the date is available.',
             },
             description: {
               type: 'string',
@@ -58,7 +61,7 @@ const REPORT_TOOL: Tool = {
               description: 'ISO 4217 code (e.g. USD). Omit for domestic currency.',
             },
           },
-          required: ['date', 'description', 'amount'],
+          required: ['datetime', 'description', 'amount'],
         },
       },
     },
@@ -101,7 +104,7 @@ have collected all transactions back to ${sinceDate}.
 5. Once you have everything, call ${REPORT_TRANSACTIONS} with the full list.
    - "amount" must be a signed number: negative for money leaving the account (purchases, \
 withdrawals, fees), positive for money entering (deposits, refunds).
-   - "date" must be YYYY-MM-DD.
+   - "datetime" must be ISO 8601: YYYY-MM-DDTHH:MM:SS if the time is shown, YYYY-MM-DD if not.
    - "transactionId" should be included only if the institution shows a reference number or ID.
 
 Do not navigate to other accounts. Do not log out.

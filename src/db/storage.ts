@@ -165,7 +165,7 @@ export interface TransactionRow {
   id: number;
   institutionName: string;
   accountName: string;
-  date: string;
+  datetime: string;
   description: string;
   amountCents: number;
   currency: string | null;
@@ -194,7 +194,7 @@ export function saveTransactions(
     for (const t of txList) {
       const amountCents = Math.round(t.amount * 100);
       const txId = t.transactionId ?? createHash('sha256')
-        .update(`${rawAccountId}:${t.date}:${t.description}:${amountCents}`)
+        .update(`${rawAccountId}:${t.datetime}:${t.description}:${amountCents}`)
         .digest('hex')
         .slice(0, 16);
 
@@ -202,7 +202,7 @@ export function saveTransactions(
         .values({
           accountId: account.id,
           transactionId: txId,
-          date: t.date,
+          datetime: t.datetime,
           description: t.description,
           amountCents,
           currency: t.currency,
@@ -217,12 +217,13 @@ export function listTransactions(
   db: Db,
   filters: { institutionName?: string; accountName?: string; days?: number } = {},
 ): TransactionRow[] {
+  // Cutoff is date-only; ISO string prefix comparison works because YYYY-MM-DD < YYYY-MM-DDTHH:MM:SS
   const cutoff = filters.days != null
     ? new Date(Date.now() - filters.days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     : undefined;
 
   const conditions = [
-    cutoff != null ? gte(transactionsTable.date, cutoff) : undefined,
+    cutoff != null ? gte(transactionsTable.datetime, cutoff) : undefined,
     filters.institutionName != null ? eq(institutions.name, filters.institutionName) : undefined,
     filters.accountName != null ? eq(accountsTable.name, filters.accountName) : undefined,
   ].filter((c): c is NonNullable<typeof c> => c != null);
@@ -232,7 +233,7 @@ export function listTransactions(
       id:              transactionsTable.id,
       institutionName: institutions.name,
       accountName:     accountsTable.name,
-      date:            transactionsTable.date,
+      datetime:        transactionsTable.datetime,
       description:     transactionsTable.description,
       amountCents:     transactionsTable.amountCents,
       currency:        transactionsTable.currency,
@@ -242,9 +243,9 @@ export function listTransactions(
     .innerJoin(institutions, eq(accountsTable.institutionId, institutions.id));
 
   if (conditions.length > 0) {
-    return base.where(and(...conditions)).orderBy(desc(transactionsTable.date)).all();
+    return base.where(and(...conditions)).orderBy(desc(transactionsTable.datetime)).all();
   }
-  return base.orderBy(desc(transactionsTable.date)).all();
+  return base.orderBy(desc(transactionsTable.datetime)).all();
 }
 
 export function mergeAccounts(db: Db, sourceId: number, targetId: number): void {

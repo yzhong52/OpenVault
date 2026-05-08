@@ -14,7 +14,7 @@ function printTransactionsTable(rows: TransactionRow[], { demo }: { demo: boolea
   }
 
   const entries = rows.map(r => ({
-    date:        r.date,
+    date:        r.datetime.includes('T') ? r.datetime.slice(0, 16).replace('T', ' ') : r.datetime,
     institution: r.institutionName,
     account:     r.accountName,
     description: r.description,
