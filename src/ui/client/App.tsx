@@ -3,6 +3,19 @@ import {
   fetchAccounts, fetchNetWorth, demoModeFromUrl,
   type AccountRow, type NetWorthPoint, type DemoMode,
 } from './api';
+
+const DEMO_STORAGE_KEY = 'openvault:demo';
+
+function loadDemo(): DemoMode {
+  const stored = localStorage.getItem(DEMO_STORAGE_KEY) as DemoMode | null;
+  if (stored === 'rich' || stored === 'poor') return stored;
+  return demoModeFromUrl();
+}
+
+function saveDemo(demo: DemoMode) {
+  if (demo) localStorage.setItem(DEMO_STORAGE_KEY, demo);
+  else localStorage.removeItem(DEMO_STORAGE_KEY);
+}
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
 import { AccountsPage } from './AccountsTable';
@@ -22,7 +35,7 @@ export function App() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const [page,     setPage]     = useState<Page>(pageFromPath);
-  const [demo,     setDemo]     = useState<DemoMode>(demoModeFromUrl);
+  const [demo,     setDemo]     = useState<DemoMode>(loadDemo);
 
   useEffect(() => {
     setLoading(true);
@@ -48,7 +61,7 @@ export function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar page={page} setPage={navigate} demo={demo} setDemo={setDemo}/>
+      <Sidebar page={page} setPage={navigate} demo={demo} setDemo={d => { saveDemo(d); setDemo(d); }}/>
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 60 }}>
         {loading && (
           <div style={{ padding: '32px 36px', color: 'oklch(0.6 0.01 260)', fontSize: 14 }}>
