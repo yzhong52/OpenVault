@@ -35,12 +35,17 @@ After each action, the updated page state is provided automatically.${formatMemo
 }
 
 
+// Either (role + name) or selector must be provided. JSON Schema can't express
+// "one of two alternatives" as a required constraint, so required is left empty and
+// the mutual exclusivity is communicated to Claude via the field descriptions instead.
+// If Claude omits both, credLocator will call getByRole(undefined) and Playwright will
+// throw — that error is returned to Claude as a tool result so it can retry correctly.
 const credFieldSchema = {
   type: 'object' as const,
   properties: {
-    role:     { type: 'string', description: 'ARIA role, e.g. textbox, combobox. Use with name to locate by accessibility tree.' },
+    role:     { type: 'string', description: 'ARIA role, e.g. textbox, combobox. Use with name to locate by accessibility tree. Provide either role+name or selector.' },
     name:     { type: 'string', description: 'Accessible name of the field (label text). Required when using role.' },
-    selector: { type: 'string', description: 'CSS selector fallback when the field has no accessible name, e.g. "#userId", "#password".' },
+    selector: { type: 'string', description: 'CSS selector, e.g. "#userId". Use when the field has no accessible name and role+name matching fails.' },
     frame:    { type: 'string', description: 'CSS selector of the iframe containing the field, e.g. "#loginFrame". Omit if the field is in the main frame.' },
   },
   required: [],
