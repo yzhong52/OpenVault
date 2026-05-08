@@ -56,6 +56,7 @@ app.get('/api/accounts', (c) => {
     if (demo === 'poor' || demo === 'rich') {
       accounts = accounts.map(a => ({
         ...a,
+        accountId: applyDemoMask(a.accountId),
         accountName: applyDemoMask(a.accountName),
         amountCents: a.amountCents !== null
           ? getDemoBalance(`${a.institutionName}/${a.accountName}`, a.accountType, demo)

@@ -13,6 +13,8 @@ export interface NetWorthPoint {
   amountCents: number;
 }
 
+// TODO: If adding a client-side router, this static module-level initialization won't
+// react to history changes without a hard refresh. Move into a hook if needed later.
 const demoValue = new URLSearchParams(window.location.search).get('demo');
 const demoParam = (demoValue === 'poor' || demoValue === 'rich') ? `?demo=${demoValue}` : '';
 

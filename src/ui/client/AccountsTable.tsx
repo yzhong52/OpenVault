@@ -84,8 +84,15 @@ export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
                       background: 'oklch(0.985 0.003 60)',
                     }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 500 }}>{a.accountName}</div>
-                        <div style={{ fontSize: 12, color: 'oklch(0.6 0.01 260)', marginTop: 1 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {a.accountName}
+                          {a.accountId && (
+                            <span style={{ fontSize: 11, fontWeight: 400, color: 'oklch(0.6 0.01 260)', background: 'oklch(0.96 0.005 260)', padding: '2px 6px', borderRadius: 4, fontFamily: "'DM Mono', monospace" }}>
+                              {a.accountId}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'oklch(0.6 0.01 260)', marginTop: 2 }}>
                           {[a.accountType, a.accountCurrency].filter(Boolean).join(' · ')}
                           {a.latestDate && ` · synced ${a.latestDate}`}
                         </div>
