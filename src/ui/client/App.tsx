@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { fetchAccounts, fetchNetWorth, type AccountRow, type NetWorthPoint } from './api';
+import {
+  fetchAccounts, fetchNetWorth, demoModeFromUrl,
+  type AccountRow, type NetWorthPoint, type DemoMode,
+} from './api';
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
 import { AccountsPage } from './AccountsTable';
@@ -19,13 +22,16 @@ export function App() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const [page,     setPage]     = useState<Page>(pageFromPath);
+  const [demo,     setDemo]     = useState<DemoMode>(demoModeFromUrl);
 
   useEffect(() => {
-    Promise.all([fetchAccounts(), fetchNetWorth()])
+    setLoading(true);
+    setError(null);
+    Promise.all([fetchAccounts(demo), fetchNetWorth(demo)])
       .then(([accs, hist]) => { setAccounts(accs); setNetWorth(hist); })
       .catch(err => { console.error(err); setError(err.message); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [demo]);
 
   useEffect(() => {
     const onPopState = () => setPage(pageFromPath());
@@ -42,7 +48,7 @@ export function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar page={page} setPage={navigate}/>
+      <Sidebar page={page} setPage={navigate} demo={demo} setDemo={setDemo}/>
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 60 }}>
         {loading && (
           <div style={{ padding: '32px 36px', color: 'oklch(0.6 0.01 260)', fontSize: 14 }}>
