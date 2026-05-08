@@ -93,6 +93,52 @@ login()
 
 Re-syncing the same day produces identical hashes → `ON CONFLICT DO NOTHING` silently skips them.
 
+## Targeted account sync (`--accountId`)
+
+```bash
+npm run cli -- sync --institution TD --accountId <id>
+```
+
+Skip account discovery and re-fetch transactions for a single known account. Useful when one
+account needs a refresh without re-scraping the whole institution.
+
+### Behaviour
+
+- `--accountId` requires `--institution` (account IDs are scoped per institution).
+- The account is looked up from the DB by `(institutionName, accountId)`. If not found, the
+  command exits with a clear error: `Account "<id>" not found under TD. Run sync without
+  --accountId first.`
+- Login still runs — the browser must authenticate before navigating to a transaction page.
+- `exploreAccounts()` is **skipped** — the cached `Account` record from the DB is used directly.
+- `saveSync()` (which records balances) is also **skipped** — only `fetchTransactions()` +
+  `saveTransactions()` run.
+
+### Files to change
+
+**`src/commands/sync.ts`**
+- Add `--accountId <id>` option (requires `--institution` when used).
+- When `--accountId` is set:
+  1. Look up the account row from `listAccounts(db)` matching institution name + accountId.
+  2. Error out if not found.
+  3. Run login as normal.
+  4. Call `fetchTransactions(page, inst.name, account, lookbackDays, sessionDir)` for that one
+     account only.
+  5. Call `saveTransactions(db, inst.name, account.accountId, txs)`.
+
+No other files need to change — `fetchTransactions` and `saveTransactions` already accept a
+single account.
+
+### Validation rules
+
+| Flag combination                           | Result                              |
+|--------------------------------------------|-------------------------------------|
+| `--accountId` without `--institution`      | Commander error: institution required |
+| `--accountId` with unknown institution     | Exits early (existing institution filter) |
+| `--accountId` with unknown account ID      | Exits with "not found" message      |
+| `--accountId` with valid institution+account | Targeted single-account tx sync   |
+
+---
+
 ## Open questions / future work
 
 - **Categorisation** — add a `category` column and let Claude tag transactions (groceries, dining,
