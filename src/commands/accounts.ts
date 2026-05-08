@@ -86,7 +86,7 @@ export function makeAccountsCommand(): Command {
           return;
         }
         const tgtIdx = await selectFromList(
-          accountLabels(tgtRows, { showInstitution: false }),
+          accountLabels(tgtRows, { showInstitution: true }),
           'Target account to merge INTO:',
         );
 
