@@ -7,15 +7,37 @@ import { listAccounts, getNetWorthHistory } from '../db/storage';
 
 const app = new Hono();
 
-// In demo mode, we assign a completely random stable balance ($5k - $150k) to each account
-// to entirely decouple from real values and protect privacy.
+type DemoMode = 'poor' | 'rich';
+
+// Stable per-session balances so the numbers don't change on every request.
 const demoBalances = new Map<string, number>();
 
-function getDemoBalance(accountId: string): number {
-  if (!demoBalances.has(accountId)) {
-    demoBalances.set(accountId, Math.floor((Math.random() * 145000 + 5000) * 100));
+function isDemoDebt(accountId: string, type: string | null): boolean {
+  if (type === 'credit' || type === 'loan') return true;
+  // Deterministically make ~1 in 4 accounts a debt account.
+  let hash = 0;
+  for (let i = 0; i < accountId.length; i++) hash = (hash * 31 + accountId.charCodeAt(i)) & 0x7fffffff;
+  return hash % 4 === 0;
+}
+
+function getDemoBalance(accountId: string, type: string | null, mode: DemoMode): number {
+  const key = `${mode}/${accountId}`;
+  if (demoBalances.has(key)) return demoBalances.get(key)!;
+
+  let cents: number;
+  if (isDemoDebt(accountId, type)) {
+    const [min, max] = mode === 'poor' ? [800, 6_000] : [3_000, 22_000];
+    cents = -Math.floor((Math.random() * (max - min) + min) * 100);
+  } else if (mode === 'poor') {
+    const [min, max] = type === 'investment' ? [500, 12_000] : [200, 4_000];
+    cents = Math.floor((Math.random() * (max - min) + min) * 100);
+  } else {
+    const [min, max] = type === 'investment' ? [80_000, 600_000] : [15_000, 120_000];
+    cents = Math.floor((Math.random() * (max - min) + min) * 100);
   }
-  return demoBalances.get(accountId)!;
+
+  demoBalances.set(key, cents);
+  return cents;
 }
 
 function applyDemoMask(name: string): string {
@@ -30,12 +52,15 @@ app.get('/api/accounts', (c) => {
   try {
     let accounts = listAccounts(db);
 
-    const isDemo = c.req.query('demo') === '1';
-    if (isDemo) {
+    const demo = c.req.query('demo') as DemoMode | undefined;
+    if (demo === 'poor' || demo === 'rich') {
       accounts = accounts.map(a => ({
         ...a,
+        accountId: applyDemoMask(a.accountId),
         accountName: applyDemoMask(a.accountName),
-        amountCents: a.amountCents !== null ? getDemoBalance(`${a.institutionName}/${a.accountName}`) : null,
+        amountCents: a.amountCents !== null
+          ? getDemoBalance(`${a.institutionName}/${a.accountName}`, a.accountType, demo)
+          : null,
       }));
     }
 
@@ -50,13 +75,14 @@ app.get('/api/net-worth', (c) => {
   try {
     let history = getNetWorthHistory(db);
 
-    const isDemo = c.req.query('demo') === '1';
-    if (isDemo && history.length > 0) {
-      // Calculate the sum of all fake accounts to anchor the end of our fake chart,
-      // guaranteeing the net worth chart perfectly matches the account table total
+    const demo = c.req.query('demo') as DemoMode | undefined;
+    if ((demo === 'poor' || demo === 'rich') && history.length > 0) {
+      // Anchor the chart end to the sum of fake balances so chart and cards always agree.
       const accounts = listAccounts(db);
-      let runningTotal = accounts.reduce((sum, a) => 
-        sum + (a.amountCents !== null ? getDemoBalance(`${a.institutionName}/${a.accountName}`) : 0)
+      let runningTotal = accounts.reduce((sum, a) =>
+        sum + (a.amountCents !== null
+          ? getDemoBalance(`${a.institutionName}/${a.accountName}`, a.accountType, demo)
+          : 0)
       , 0);
 
       // Walk backwards through history, applying a random simulated market variance
@@ -71,6 +97,27 @@ app.get('/api/net-worth', (c) => {
     return c.json(history);
   } finally {
     close();
+  }
+});
+
+app.get('/favicon.png', async (c) => {
+  const iconPath = path.join(process.cwd(), 'src/ui/public/LedgerAgent.png');
+  try {
+    const content = await fs.readFile(iconPath);
+    return c.body(content as unknown as ReadableStream, 200, { 'Content-Type': 'image/png' });
+  } catch {
+    return c.notFound();
+  }
+});
+
+app.get('/icons/:file', async (c) => {
+  const file = c.req.param('file');
+  const iconPath = path.join(process.cwd(), 'src/ui/public/icons', file);
+  try {
+    const content = await fs.readFile(iconPath);
+    return c.body(content as unknown as ReadableStream, 200, { 'Content-Type': 'image/png' });
+  } catch {
+    return c.notFound();
   }
 });
 
@@ -93,18 +140,21 @@ app.get('/', (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenVault</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f9fafb;
-      color: #111827;
-      margin: 0;
-      padding: 40px 20px;
+      font-family: 'DM Sans', sans-serif;
+      background: oklch(0.975 0.004 60);
+      color: oklch(0.15 0.01 260);
+      -webkit-font-smoothing: antialiased;
     }
-    #root {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: oklch(0.85 0.005 260); border-radius: 3px; }
   </style>
 </head>
 <body>

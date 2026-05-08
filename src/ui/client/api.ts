@@ -3,6 +3,7 @@ export interface AccountRow {
   accountName: string;
   accountType: string | null;
   accountCurrency: string | null;
+  accountId: string;
   latestDate: string | null;
   amountCents: number | null;
 }
@@ -12,7 +13,10 @@ export interface NetWorthPoint {
   amountCents: number;
 }
 
-const demoParam = new URLSearchParams(window.location.search).get('demo') === '1' ? '?demo=1' : '';
+// TODO: If adding a client-side router, this static module-level initialization won't
+// react to history changes without a hard refresh. Move into a hook if needed later.
+const demoValue = new URLSearchParams(window.location.search).get('demo');
+const demoParam = (demoValue === 'poor' || demoValue === 'rich') ? `?demo=${demoValue}` : '';
 
 export async function fetchAccounts(): Promise<AccountRow[]> {
   const res = await fetch(`/api/accounts${demoParam}`);
