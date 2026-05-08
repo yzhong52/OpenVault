@@ -34,16 +34,23 @@ Add an institution:
 npm run cli -- institution add
 ```
 
-Sync that institution:
+Sync accounts and balances:
 
 ```bash
-npm run cli -- sync --institution "TD"
+npm run cli -- accounts sync --institution "TD"
 ```
 
-List the latest stored balances:
+Fetch recent transactions:
+
+```bash
+npm run cli -- transactions sync --institution "TD"
+```
+
+List stored accounts and transactions:
 
 ```bash
 npm run cli -- accounts list
+npm run cli -- transactions list
 ```
 
 ## Local storage
@@ -52,7 +59,7 @@ OpenVault stores all data on your machine:
 
 - Institution metadata is saved in `~/.openvault/accounts.json`
 - Passwords are saved in macOS Keychain
-- Synced balances are saved in `~/.openvault/data.db`
+- Synced balances and transactions are saved in `~/.openvault/data.db`
 - Browser session state is saved in `~/.openvault/browser-profile`
 - Per-institution agent memory is saved in `~/.openvault/memory/`
 - Debug snapshots are saved in `~/.openvault/logs/`
@@ -63,6 +70,7 @@ Each sync runs a three-step agent pipeline per institution:
 
 1. **Login** (`src/tasks/login.ts`) — navigates to the institution's login page, fills credentials, handles MFA, and waits for the dashboard.
 2. **Account discovery** (`src/tasks/accounts.ts`) — scans the dashboard to discover all accounts, types, and balances.
+3. **Transaction fetch** (`src/tasks/transactions.ts`) — navigates to each account's transaction history and extracts recent transactions for the configured lookback window (default: 30 days).
 
 After each step, the agent reflects on what worked and what didn't, and writes a short set of notes that are injected into the next session. This means the agent gets faster and more reliable over time for each institution it's seen before.
 
@@ -76,18 +84,36 @@ npm run cli -- institution add
 
 You'll be prompted for the institution name, login URL, username or email, and password. Credentials are stored in the macOS Keychain — you won't be asked again.
 
-**Sync all institutions:**
+**Sync accounts and balances:**
 
 ```bash
-npm run cli -- sync
+npm run cli -- accounts sync
+npm run cli -- accounts sync --institution "TD"   # one institution only
 ```
 
-Opens a real Chrome window, logs into each saved institution, extracts all accounts and balances, and saves them to a local SQLite database.
+Opens a real Chrome window, logs in, discovers all accounts and balances, and saves them to a local SQLite database.
 
-**Sync one institution:**
+**Fetch transactions:**
 
 ```bash
-npm run cli -- sync --institution "TD"
+npm run cli -- transactions sync                                        # last 30 days, all institutions
+npm run cli -- transactions sync --institution "TD" --days 90          # wider window
+npm run cli -- transactions sync --institution "TD" --accountId 1234   # one account only
+```
+
+Reads the accounts already in the DB, navigates to each account's transaction history, and saves the results. Run `accounts sync` first if no accounts are stored yet.
+
+**List stored accounts and latest balances:**
+
+```bash
+npm run cli -- accounts list
+```
+
+**List recent transactions:**
+
+```bash
+npm run cli -- transactions list
+npm run cli -- transactions list --institution "TD" --account "Chequing" --days 7
 ```
 
 ## MFA

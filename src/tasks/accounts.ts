@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone } from '../agent';
+import { runAgent, toolDone, MAX_TURNS } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { ACCOUNT_TOOL } from '../agent/tools';
 import {
@@ -150,6 +150,9 @@ export async function exploreAccounts(
       },
       sessionDir,
       'conversation_accounts',
+      [],
+      MAX_TURNS,
+      1024,
     );
   } finally {
     if (events.length > 0) {

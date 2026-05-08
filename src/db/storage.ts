@@ -1,9 +1,11 @@
 
-import { eq, desc } from 'drizzle-orm';
+import { createHash } from 'crypto';
+import { eq, desc, and, gte } from 'drizzle-orm';
 import type { Account } from '../tasks/accounts';
 import { ACCOUNT_TYPES } from '../tasks/accounts';
+import type { Transaction } from '../tasks/transactions';
 import { type Db } from '.';
-import { institutions, accounts as accountsTable, syncs, balances } from './schema';
+import { institutions, accounts as accountsTable, syncs, balances, transactions as transactionsTable } from './schema';
 
 function toDateString(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -157,6 +159,93 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
   }
 
   return result;
+}
+
+export interface TransactionRow {
+  id: number;
+  institutionName: string;
+  accountName: string;
+  datetime: string;
+  description: string;
+  amountCents: number;
+  currency: string | null;
+}
+
+export function saveTransactions(
+  db: Db,
+  institutionName: string,
+  rawAccountId: string,
+  txList: Transaction[],
+): void {
+  const institutionId = slugify(institutionName);
+
+  const account = db
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(and(
+      eq(accountsTable.institutionId, institutionId),
+      eq(accountsTable.accountId, rawAccountId),
+    ))
+    .get();
+
+  if (!account) return;
+
+  db.transaction((tx) => {
+    for (const t of txList) {
+      const amountCents = Math.round(t.amount * 100);
+      const txId = t.transactionId ?? createHash('sha256')
+        .update(`${rawAccountId}:${t.datetime}:${t.description}:${amountCents}`)
+        .digest('hex')
+        .slice(0, 16);
+
+      tx.insert(transactionsTable)
+        .values({
+          accountId: account.id,
+          transactionId: txId,
+          datetime: t.datetime,
+          description: t.description,
+          amountCents,
+          currency: t.currency,
+        })
+        .onConflictDoNothing()
+        .run();
+    }
+  });
+}
+
+export function listTransactions(
+  db: Db,
+  filters: { institutionName?: string; accountName?: string; days?: number } = {},
+): TransactionRow[] {
+  // Cutoff is date-only; ISO string prefix comparison works because YYYY-MM-DD < YYYY-MM-DDTHH:MM:SS
+  const cutoff = filters.days != null
+    ? new Date(Date.now() - filters.days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    : undefined;
+
+  const conditions = [
+    cutoff != null ? gte(transactionsTable.datetime, cutoff) : undefined,
+    filters.institutionName != null ? eq(institutions.name, filters.institutionName) : undefined,
+    filters.accountName != null ? eq(accountsTable.name, filters.accountName) : undefined,
+  ].filter((c): c is NonNullable<typeof c> => c != null);
+
+  const base = db
+    .select({
+      id:              transactionsTable.id,
+      institutionName: institutions.name,
+      accountName:     accountsTable.name,
+      datetime:        transactionsTable.datetime,
+      description:     transactionsTable.description,
+      amountCents:     transactionsTable.amountCents,
+      currency:        transactionsTable.currency,
+    })
+    .from(transactionsTable)
+    .innerJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
+    .innerJoin(institutions, eq(accountsTable.institutionId, institutions.id));
+
+  if (conditions.length > 0) {
+    return base.where(and(...conditions)).orderBy(desc(transactionsTable.datetime)).all();
+  }
+  return base.orderBy(desc(transactionsTable.datetime)).all();
 }
 
 export function mergeAccounts(db: Db, sourceId: number, targetId: number): void {
