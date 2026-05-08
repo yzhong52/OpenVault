@@ -18,12 +18,19 @@ export function makeSyncCommand(): Command {
     .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
     .option('--demo', 'Hide sensitive data by randomizing balances and account numbers')
     .option('--days <n>', 'Number of days of transaction history to fetch (default: 30)', '30')
+    .option('--accountId <id>', 'Only fetch transactions for this account ID (requires --institution)')
     .action(async (opts: {
       institution: string | undefined;
       verbose: boolean;
       demo: boolean;
       days: string;
+      accountId: string | undefined;
     }) => {
+      if (opts.accountId && !opts.institution) {
+        console.log('--accountId requires --institution.');
+        return;
+      }
+
       if (opts.verbose) process.env.VERBOSE = '1';
       const lookbackDays = Math.max(1, parseInt(opts.days, 10) || 30);
       let institutions = await readInstitutions();
@@ -60,6 +67,31 @@ export function makeSyncCommand(): Command {
           console.log(`\n🤖 Syncing ${inst.name}...`);
           const sessionDir = await createSession(inst.url);
           await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
+
+          if (opts.accountId) {
+            const match = listAccounts(db).find(
+              a => a.institutionName === inst.name && a.accountId.endsWith(opts.accountId!),
+            );
+            if (!match) {
+              console.log(
+                `Account "${opts.accountId}" not found under ${inst.name}. ` +
+                `Run sync without --accountId first.`,
+              );
+              continue;
+            }
+            const account = { name: match.accountName, accountId: match.accountId };
+            try {
+              const txs = await fetchTransactions(page, inst.name, account, lookbackDays, sessionDir);
+              saveTransactions(db, inst.name, match.accountId, txs);
+              console.log(`  ✓ ${txs.length} transaction(s) saved for ${account.name}`);
+            } catch (err) {
+              console.error(
+                `  ❌ Transactions failed for ${account.name}: ` +
+                `${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+            continue;
+          }
 
           const existingAccountsMsg = listAccounts(db)
             .filter(a => a.institutionName === inst.name)

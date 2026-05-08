@@ -115,7 +115,7 @@ account needs a refresh without re-scraping the whole institution.
 
 ### Files to change
 
-**`src/commands/sync.ts`**
+**`src/commands/sync.ts`** ✅
 - Add `--accountId <id>` option (requires `--institution` when used).
 - When `--accountId` is set:
   1. Look up the account row from `listAccounts(db)` matching institution name + accountId.
