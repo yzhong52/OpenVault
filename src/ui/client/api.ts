@@ -13,6 +13,16 @@ export interface NetWorthPoint {
   amountCents: number;
 }
 
+export interface TransactionRow {
+  id: number;
+  institutionName: string;
+  accountName: string;
+  datetime: string;
+  description: string;
+  amountCents: number;
+  currency: string | null;
+}
+
 export type DemoMode = 'rich' | 'poor' | null;
 
 export function demoModeFromUrl(): DemoMode {
@@ -33,5 +43,11 @@ export async function fetchAccounts(demo: DemoMode): Promise<AccountRow[]> {
 export async function fetchNetWorth(demo: DemoMode): Promise<NetWorthPoint[]> {
   const res = await fetch(`/api/net-worth${demoParam(demo)}`);
   if (!res.ok) throw new Error('Failed to fetch net worth history');
+  return res.json();
+}
+
+export async function fetchTransactions(demo: DemoMode): Promise<TransactionRow[]> {
+  const res = await fetch(`/api/transactions${demoParam(demo)}`);
+  if (!res.ok) throw new Error('Failed to fetch transactions');
   return res.json();
 }

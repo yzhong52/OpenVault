@@ -1,7 +1,7 @@
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import type { AccountRow, NetWorthPoint } from './api';
+import type { AccountRow, NetWorthPoint, TransactionRow } from './api';
 import { getInstColor, fmtCents, fmtCentsK } from './utils';
 import { InstBadge } from './InstBadge';
 
@@ -64,6 +64,8 @@ function ChartTooltip({ active, payload, label }: any) {
 interface Props {
   accounts: AccountRow[];
   history: NetWorthPoint[];
+  transactions: TransactionRow[];
+  onViewAll: () => void;
 }
 
 function greeting() {
@@ -79,7 +81,7 @@ function formatDate(d: Date) {
   return d.toLocaleDateString('en-CA', { month: 'long' }) + ' ' + day + suffix + ', ' + d.getFullYear();
 }
 
-export function Dashboard({ accounts, history }: Props) {
+export function Dashboard({ accounts, history, transactions, onViewAll }: Props) {
   const assetAccounts = accounts.filter(a => (a.amountCents ?? 0) > 0);
   const debtAccounts  = accounts.filter(a => (a.amountCents ?? 0) < 0);
   const netWorthCents = accounts.reduce((s, a) => s + (a.amountCents ?? 0), 0);
@@ -195,6 +197,55 @@ export function Dashboard({ accounts, history }: Props) {
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{
+        marginTop: 14, background: '#fff', borderRadius: 12,
+        border: '1px solid oklch(0.91 0.005 260)', padding: '22px 24px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'oklch(0.35 0.01 260)' }}>Recent Transactions</div>
+          {transactions.length > 0 && (
+            <button onClick={onViewAll} style={{
+              fontSize: 12, color: `oklch(0.50 0.18 ${ACCENT})`, background: 'none',
+              border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+            }}>
+              View all →
+            </button>
+          )}
+        </div>
+        {transactions.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'oklch(0.6 0.01 260)' }}>
+            No transactions yet — run a sync to get started.
+          </div>
+        ) : (
+          <div>
+            {transactions.slice(0, 5).map((tx, i) => (
+              <div key={tx.id} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 0',
+                borderBottom: i < Math.min(transactions.length, 5) - 1
+                  ? '1px solid oklch(0.95 0.003 260)' : 'none',
+              }}>
+                <InstBadge name={tx.institutionName} size={28}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {tx.description}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'oklch(0.6 0.01 260)', marginTop: 1 }}>
+                    {tx.accountName} · {tx.datetime.slice(0, 10)}
+                  </div>
+                </div>
+                <div style={{
+                  fontFamily: "'DM Mono', monospace", fontSize: 13.5, fontWeight: 500, flexShrink: 0,
+                  color: tx.amountCents >= 0 ? 'oklch(0.42 0.14 145)' : 'oklch(0.15 0.01 260)',
+                }}>
+                  {tx.amountCents >= 0 ? '+' : ''}{fmtCents(tx.amountCents)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

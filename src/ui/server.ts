@@ -3,7 +3,7 @@ import { Hono, type Context } from 'hono';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { openDb } from '../db';
-import { listAccounts, getNetWorthHistory } from '../db/storage';
+import { listAccounts, getNetWorthHistory, listTransactions, type TransactionRow } from '../db/storage';
 
 const app = new Hono();
 
@@ -100,6 +100,71 @@ app.get('/api/net-worth', (c) => {
   }
 });
 
+const DEMO_MERCHANTS: { desc: string; cents: number }[] = [
+  { desc: 'Direct Deposit – Payroll',  cents:  285000 },
+  { desc: 'Grocery Store',             cents:   -8432 },
+  { desc: 'Restaurant',                cents:   -4521 },
+  { desc: 'Netflix',                   cents:   -1999 },
+  { desc: 'Gas Station',               cents:   -6234 },
+  { desc: 'Amazon.ca',                 cents:   -3499 },
+  { desc: 'Coffee Shop',               cents:    -645 },
+  { desc: 'Gym Membership',            cents:   -4999 },
+  { desc: 'TTC Transit',               cents:    -350 },
+  { desc: 'Pharmacy',                  cents:   -2341 },
+  { desc: 'Spotify',                   cents:   -1099 },
+  { desc: 'Hydro Bill',                cents:  -12300 },
+  { desc: 'ATM Withdrawal',            cents:  -20000 },
+  { desc: 'Grocery Store',             cents:   -6210 },
+  { desc: 'Internet Bill',             cents:   -8500 },
+  { desc: 'Tim Hortons',               cents:    -387 },
+  { desc: 'Restaurant',                cents:   -7823 },
+  { desc: 'Direct Deposit – Payroll',  cents:  285000 },
+  { desc: 'Gas Station',               cents:   -5100 },
+  { desc: 'Apple Store',               cents:  -14999 },
+];
+
+const demoCachedTxs = new Map<string, TransactionRow[]>();
+
+function generateDemoTransactions(demo: DemoMode): TransactionRow[] {
+  if (demoCachedTxs.has(demo)) return demoCachedTxs.get(demo)!;
+
+  const now = new Date();
+  const txs: TransactionRow[] = DEMO_MERCHANTS.map((m, i) => {
+    const date = new Date(now);
+    date.setDate(date.getDate() - Math.floor(i * 1.8));
+    const scale = demo === 'poor' && m.cents > 0 ? 0.35 : 1;
+    return {
+      id: -(i + 1),
+      institutionName: i % 3 === 0 ? 'TD Bank' : i % 3 === 1 ? 'Wealthsimple' : 'Tangerine',
+      accountName: m.cents > 0 ? 'Chequing ••••' : i % 4 === 0 ? 'Savings ••••' : 'Chequing ••••',
+      datetime: date.toISOString().slice(0, 10),
+      description: m.desc,
+      amountCents: Math.round(m.cents * scale),
+      currency: 'CAD',
+    };
+  });
+
+  demoCachedTxs.set(demo, txs);
+  return txs;
+}
+
+app.get('/api/transactions', (c) => {
+  const demo = c.req.query('demo') as DemoMode | undefined;
+  const daysParam = c.req.query('days');
+  const days = daysParam ? parseInt(daysParam, 10) : 90;
+
+  if (demo === 'poor' || demo === 'rich') {
+    return c.json(generateDemoTransactions(demo));
+  }
+
+  const { db, close } = openDb();
+  try {
+    return c.json(listTransactions(db, { days }));
+  } finally {
+    close();
+  }
+});
+
 app.get('/favicon.png', async (c) => {
   const iconPath = path.join(process.cwd(), 'src/ui/public/LedgerAgent.png');
   try {
@@ -145,6 +210,7 @@ async function serveIndex(c: Context) {
 
 app.get('/', (c) => serveIndex(c));
 app.get('/accounts', (c) => serveIndex(c));
+app.get('/transactions', (c) => serveIndex(c));
 
 const port = 3000;
 console.log(`Starting OpenVault UI server on http://localhost:${port}`);

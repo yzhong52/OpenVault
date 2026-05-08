@@ -24,6 +24,14 @@ export function Icon({ name, size = 16 }: IconProps) {
         <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
+    transactions: (
+      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+        <path d="M3 1.5h10v13l-2-1.5-2 1.5-2-1.5-2 1.5V1.5z"
+              stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
     demo: (
       <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
         <path d="M6 1.5h4M6 1.5V6L2.5 13h11L10 6V1.5"

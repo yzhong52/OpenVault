@@ -1,7 +1,7 @@
 import { Icon } from './Icons';
 import { type DemoMode } from './api';
 
-type Page = 'dashboard' | 'accounts';
+type Page = 'dashboard' | 'accounts' | 'transactions';
 
 interface SidebarProps {
   page: Page;
@@ -11,8 +11,9 @@ interface SidebarProps {
 }
 
 const NAV: { id: Page; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Overview', icon: 'overview' },
-  { id: 'accounts',  label: 'Accounts',  icon: 'accounts'  },
+  { id: 'dashboard',    label: 'Overview',     icon: 'overview'      },
+  { id: 'accounts',     label: 'Accounts',     icon: 'accounts'      },
+  { id: 'transactions', label: 'Transactions', icon: 'transactions'  },
 ];
 
 const ACCENT = 260;
@@ -30,7 +31,7 @@ export function Sidebar({ page, setPage, demo, setDemo }: SidebarProps) {
   }
   return (
     <div style={{
-      width: 220, minHeight: '100vh',
+      width: 220, height: '100vh',
       background: 'oklch(0.99 0.003 60)',
       borderRight: '1px solid oklch(0.92 0.005 260)',
       display: 'flex', flexDirection: 'column', flexShrink: 0,
