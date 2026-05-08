@@ -104,7 +104,7 @@ export async function runAgent<T>(
   logName: string,
   sensitiveValues: string[] = [],
   maxTurns: number = MAX_TURNS,
-  maxTokens: number = 1024,
+  maxTokens: number,
 ): Promise<T> {
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
