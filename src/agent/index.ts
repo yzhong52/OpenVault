@@ -11,6 +11,16 @@ import { keychainLoadApiKey } from '../keychain';
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
+
+function briefInput(input: Record<string, unknown>): string {
+  if (input.role && input.name) return `${input.role} "${input.name}"`;
+  if (input.testId)   return `#${input.testId}`;
+  if (input.text)     return `"${input.text}"`;
+  if (input.selector) return `"${input.selector}"`;
+  if (Array.isArray(input.transactions)) return `(${input.transactions.length} items)`;
+  if (Array.isArray(input.accounts))     return `(${input.accounts.length} items)`;
+  return '';
+}
 export const VERBOSE = process.env.VERBOSE === '1';
 const MAX_SESSIONS_PER_HOST = 10;
 
@@ -181,11 +191,12 @@ export async function runAgent<T>(
     for (const toolUse of toolUses) {
       if (!result) {
         if (toolUse.name === SUCCESS_TOOL) {
-          console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 Mission accomplished`);
+          console.log(`🔄 ${turn + 1}/${maxTurns} 💬 Mission accomplished`);
         } else if (VERBOSE) {
-          console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`, redactSensitive(JSON.stringify(toolUse.input)));
+          console.log(`🔄 ${turn + 1}/${maxTurns} 💬 ${toolUse.name}`, redactSensitive(JSON.stringify(toolUse.input)));
         } else {
-          console.log(`🔄 ${turn + 1}/${MAX_TURNS} 💬 ${toolUse.name}`);
+          const brief = briefInput(toolUse.input as Record<string, unknown>);
+          console.log(`🔄 ${turn + 1}/${maxTurns} 💬 ${toolUse.name}${brief ? ` ${brief}` : ''}`);
         }
 
         let output = '';
