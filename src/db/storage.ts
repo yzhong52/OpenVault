@@ -86,7 +86,12 @@ export function saveSync(
       const changes: string[] = [];
       const newCents = account.balance != null ? Math.round(account.balance * 100) : null;
       if (prev.amountCents !== newCents) {
-        const fmt = (c: number | null) => c != null ? `$${(c / 100).toFixed(2)}` : '—';
+        const fmt = (c: number | null) => {
+          if (c == null) return '—';
+          const abs = Math.abs(c) / 100;
+          const s = abs.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return c < 0 ? `-$${s}` : `$${s}`;
+        };
         changes.push(`balance ${fmt(prev.amountCents)} → ${fmt(newCents)}`);
       }
       const newType = normalizeType(account.type) ?? null;

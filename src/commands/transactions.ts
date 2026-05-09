@@ -23,7 +23,7 @@ export function printTransactionSyncResult(
   }
 }
 
-export function printNewTransactionsTable(txs: Transaction[]): void {
+function printNewTransactionsTable(txs: Transaction[]): void {
   const entries = txs.map(t => ({
     date:        t.datetime.includes('T') ? t.datetime.slice(0, 16).replace('T', ' ') : t.datetime,
     description: t.description,

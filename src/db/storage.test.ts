@@ -4,11 +4,10 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as path from 'path';
 import * as schema from './schema';
-import { getNetWorthHistory, saveSync, saveTransactions } from './storage';
+import { getNetWorthHistory, saveSync, saveTransactions, listAccounts } from './storage';
 import { type Db } from './index';
 import { printAccountSyncResult } from '../commands/accounts';
 import { printTransactionSyncResult } from '../commands/transactions';
-import { listAccounts } from './storage';
 
 function makeDb(): { sqlite: Database.Database; db: Db } {
   const sqlite = new Database(':memory:');
@@ -45,7 +44,7 @@ describe('saveSync', () => {
   it('balance change → updated with description', () => {
     saveSync(db, 'TD', 'https://td.com', [CHQ]);
     const diff = saveSync(db, 'TD', 'https://td.com', [{ ...CHQ, balance: 1500 }]);
-    expect(diff.updated[0].changes).toEqual(['balance $1000.00 → $1500.00']);
+    expect(diff.updated[0].changes).toEqual(['balance $1,000.00 → $1,500.00']);
   });
 
   it('missing account → reported but not deleted', () => {
@@ -133,7 +132,7 @@ describe('example console output', () => {
         RRSP     rrsp  RRSP  CAD $50,000.00
 
         ~ 1 account(s) updated:
-            Chequing: balance $1000.00 → $1500.00
+            Chequing: balance $1,000.00 → $1,500.00
 
         - 1 account(s) no longer found
           (kept for historical records; delete manually if desired)

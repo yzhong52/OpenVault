@@ -31,7 +31,7 @@ function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitutio
   ].filter(Boolean).join('  '));
 }
 
-export function printAccountSyncDiff(
+function printAccountSyncDiff(
   institutionName: string,
   diff: AccountSyncDiff,
   opts: { demo: boolean },
