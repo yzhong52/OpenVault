@@ -8,7 +8,7 @@ import * as schema from './schema';
 export { schema };
 export type Db = BetterSQLite3Database<typeof schema>;
 
-export const DATA_DIR = path.join(os.homedir(), '.openvault');
+export const DATA_DIR = path.join(os.homedir(), '.ledgeragent');
 export const LOGS_DIR = path.join(DATA_DIR, 'logs');
 
 const DB_PATH = path.join(DATA_DIR, 'data.db');

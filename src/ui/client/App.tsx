@@ -15,7 +15,7 @@ const PAGES: Record<string, Page> = {
   '/': 'dashboard', '/accounts': 'accounts', '/transactions': 'transactions',
 };
 
-const DEMO_STORAGE_KEY = 'openvault:demo';
+const DEMO_STORAGE_KEY = 'ledgeragent:demo';
 
 function pageFromPath(): Page {
   return PAGES[window.location.pathname] ?? 'dashboard';

@@ -7,6 +7,6 @@ export default defineConfig({
   out:     './src/db/migrations',
   dialect: 'sqlite',
   dbCredentials: {
-    url: path.join(os.homedir(), '.openvault', 'data.db'),
+    url: path.join(os.homedir(), '.ledgeragent', 'data.db'),
   },
 });
