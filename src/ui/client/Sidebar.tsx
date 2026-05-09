@@ -17,9 +17,9 @@ const NAV: { id: Page; label: string; icon: string }[] = [
 
 const ACCENT = 260;
 
-const DEMO_BG    = 'oklch(0.93 0.07 145)';
-const DEMO_BG_HV = 'oklch(0.88 0.09 145)';
-const DEMO_FG    = 'oklch(0.38 0.14 145)';
+const DEMO_BG    = 'oklch(0.94 0.08 88)';
+const DEMO_BG_HV = 'oklch(0.89 0.10 88)';
+const DEMO_FG    = 'oklch(0.42 0.14 88)';
 
 export function Sidebar({ page, setPage, demo, setDemo }: SidebarProps) {
   return (
