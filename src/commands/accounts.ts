@@ -72,6 +72,7 @@ export function printAccountSyncResult(
 ): void {
   printAccountSyncDiff(institutionName, diff, opts);
   if (allAccounts.length > 0) {
+    console.log(`  Current accounts for ${institutionName}:`);
     printAccountsTable(allAccounts.map(row => ({
       institution: row.institutionName,
       account:     row.accountName,

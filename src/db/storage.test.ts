@@ -139,6 +139,7 @@ describe('example console output', () => {
           (kept for historical records; delete manually if desired)
             Savings
 
+        Current accounts for TD:
 
         Account   ID    Type             Balance
         --------  ----  --------  --------------
