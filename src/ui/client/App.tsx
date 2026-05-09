@@ -21,14 +21,13 @@ function pageFromPath(): Page {
   return PAGES[window.location.pathname] ?? 'dashboard';
 }
 
-function loadDemo(): DemoMode {
-  const stored = localStorage.getItem(DEMO_STORAGE_KEY) as DemoMode | null;
-  if (stored === 'rich' || stored === 'poor') return stored;
+function loadDemo(): boolean {
+  if (localStorage.getItem(DEMO_STORAGE_KEY) === 'true') return true;
   return demoModeFromUrl();
 }
 
-function saveDemo(demo: DemoMode) {
-  if (demo) localStorage.setItem(DEMO_STORAGE_KEY, demo);
+function saveDemo(demo: boolean) {
+  if (demo) localStorage.setItem(DEMO_STORAGE_KEY, 'true');
   else localStorage.removeItem(DEMO_STORAGE_KEY);
 }
 
@@ -39,7 +38,7 @@ export function App() {
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
   const [page,         setPage]         = useState<Page>(pageFromPath);
-  const [demo,         setDemo]         = useState<DemoMode>(loadDemo);
+  const [demo,         setDemo]         = useState<boolean>(loadDemo);
 
   useEffect(() => {
     setLoading(true);

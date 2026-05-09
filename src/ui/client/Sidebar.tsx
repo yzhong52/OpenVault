@@ -1,13 +1,12 @@
 import { Icon } from './Icons';
-import { type DemoMode } from './api';
 
 export type Page = 'dashboard' | 'accounts' | 'transactions';
 
 interface SidebarProps {
   page: Page;
   setPage: (page: Page) => void;
-  demo: DemoMode;
-  setDemo: (demo: DemoMode) => void;
+  demo: boolean;
+  setDemo: (demo: boolean) => void;
 }
 
 const NAV: { id: Page; label: string; icon: string }[] = [
@@ -18,17 +17,11 @@ const NAV: { id: Page; label: string; icon: string }[] = [
 
 const ACCENT = 260;
 
-const DEMO_CYCLE: DemoMode[] = [null, 'rich', 'poor'];
-const DEMO_LABEL: Record<NonNullable<DemoMode>, string> = { rich: 'Rich', poor: 'Poor' };
-const DEMO_BG:    Record<NonNullable<DemoMode>, string> = { rich: 'oklch(0.93 0.07 145)', poor: 'oklch(0.93 0.07 20)' };
-const DEMO_BG_HV: Record<NonNullable<DemoMode>, string> = { rich: 'oklch(0.88 0.09 145)', poor: 'oklch(0.88 0.09 20)' };
-const DEMO_FG:    Record<NonNullable<DemoMode>, string> = { rich: 'oklch(0.38 0.14 145)', poor: 'oklch(0.42 0.15 20)' };
+const DEMO_BG    = 'oklch(0.94 0.08 88)';
+const DEMO_BG_HV = 'oklch(0.89 0.10 88)';
+const DEMO_FG    = 'oklch(0.42 0.14 88)';
 
 export function Sidebar({ page, setPage, demo, setDemo }: SidebarProps) {
-  function cycleDemo() {
-    const next = DEMO_CYCLE[(DEMO_CYCLE.indexOf(demo) + 1) % DEMO_CYCLE.length];
-    setDemo(next);
-  }
   return (
     <div style={{
       width: 220, height: '100vh',
@@ -72,28 +65,28 @@ export function Sidebar({ page, setPage, demo, setDemo }: SidebarProps) {
 
       <div style={{ padding: '12px 8px', borderTop: '1px solid oklch(0.93 0.005 260)' }}>
         <button
-          onClick={cycleDemo}
-          title="Cycle demo mode: off → rich → poor"
+          onClick={() => setDemo(!demo)}
+          title="Toggle demo mode"
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             width: '100%', padding: '8px 12px',
             borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left',
             fontFamily: 'inherit', fontSize: 13,
-            background: demo ? DEMO_BG[demo] : 'transparent',
-            color: demo ? DEMO_FG[demo] : 'oklch(0.55 0.01 260)',
+            background: demo ? DEMO_BG : 'transparent',
+            color: demo ? DEMO_FG : 'oklch(0.55 0.01 260)',
             transition: 'background 0.12s, color 0.12s',
           }}
           onMouseEnter={e => {
             (e.currentTarget as HTMLElement).style.background =
-              demo ? DEMO_BG_HV[demo] : 'oklch(0.95 0.005 260)';
+              demo ? DEMO_BG_HV : 'oklch(0.95 0.005 260)';
           }}
           onMouseLeave={e => {
             (e.currentTarget as HTMLElement).style.background =
-              demo ? DEMO_BG[demo] : 'transparent';
+              demo ? DEMO_BG : 'transparent';
           }}
         >
           <Icon name="demo" size={15}/>
-          {demo ? `Demo: ${DEMO_LABEL[demo]}` : 'Demo: Off'}
+          {demo ? 'Demo: On' : 'Demo: Off'}
         </button>
       </div>
     </div>

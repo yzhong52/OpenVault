@@ -23,15 +23,14 @@ export interface TransactionRow {
   currency: string | null;
 }
 
-export type DemoMode = 'rich' | 'poor' | null;
+export type DemoMode = boolean;
 
-export function demoModeFromUrl(): DemoMode {
-  const value = new URLSearchParams(window.location.search).get('demo');
-  return (value === 'poor' || value === 'rich') ? value : null;
+export function demoModeFromUrl(): boolean {
+  return new URLSearchParams(window.location.search).has('demo');
 }
 
-function demoParam(demo: DemoMode): string {
-  return demo ? `?demo=${demo}` : '';
+function demoParam(demo: boolean): string {
+  return demo ? '?demo=1' : '';
 }
 
 export async function fetchAccounts(demo: DemoMode): Promise<AccountRow[]> {
