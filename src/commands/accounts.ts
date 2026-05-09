@@ -34,7 +34,7 @@ function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitutio
 export function printAccountSyncDiff(
   institutionName: string,
   diff: AccountSyncDiff,
-  opts: { demo?: boolean } = {},
+  opts: { demo: boolean },
 ): void {
   if (diff.added.length > 0) {
     console.log(`  + ${diff.added.length} new account(s) discovered:`);
@@ -45,7 +45,7 @@ export function printAccountSyncDiff(
       type:        a.type ?? '—',
       currency:    a.currency ?? undefined,
       balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
-    })), { demo: opts.demo ?? false, showInstitution: false });
+    })), { demo: opts.demo, showInstitution: false });
   }
   if (diff.updated.length > 0) {
     console.log(`  ~ ${diff.updated.length} account(s) updated:`);

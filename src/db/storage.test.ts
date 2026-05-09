@@ -123,7 +123,7 @@ describe('example console output', () => {
   it('accounts sync diff', () => {
     saveSync(db, 'TD', 'https://td.com', [CHQ, SAV]);
     const diff = saveSync(db, 'TD', 'https://td.com', [{ ...CHQ, balance: 1500 }, RRSP]);
-    printAccountSyncDiff('TD', diff);
+    printAccountSyncDiff('TD', diff, { demo: false });
     const lines = spy.mock.calls.map((c: unknown[]) => c.join(' '));
     expect(lines).toContain('  + 1 new account(s) discovered:');
     expect(lines.find((l: string) => l.includes('~ 1 account'))).toBeTruthy();
