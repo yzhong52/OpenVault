@@ -8,11 +8,17 @@ import { saveTransactions, listAccounts, listTransactions, type TransactionRow }
 import type { Transaction } from '../tasks/transactions';
 import { prompt, readInstitutions, formatCents, launchBrowser } from './utils';
 
-export function printTransactionSyncResult(accountName: string, newTxs: Transaction[]): void {
+export function printTransactionSyncResult(
+  accountName: string,
+  newTxs: Transaction[],
+  totalFetched: number,
+): void {
+  const alreadyStored = totalFetched - newTxs.length;
+  const skippedNote = alreadyStored > 0 ? ` (${alreadyStored} already stored)` : '';
   if (newTxs.length === 0) {
-    console.log(`  (no new transactions for ${accountName})`);
+    console.log(`  (no new transactions for ${accountName}${skippedNote})`);
   } else {
-    console.log(`  ✓ ${newTxs.length} new transaction(s) for ${accountName}:`);
+    console.log(`  ✓ ${newTxs.length} new transaction(s) for ${accountName}${skippedNote}:`);
     printNewTransactionsTable(newTxs);
   }
 }
@@ -189,7 +195,7 @@ export function makeTransactionsCommand(): Command {
                 page, inst.name, account, lookbackDays, sessionDir,
               );
               const newTxs = saveTransactions(db, inst.name, account.accountId, txs);
-              printTransactionSyncResult(account.name, newTxs);
+              printTransactionSyncResult(account.name, newTxs, txs.length);
             } catch (err) {
               console.error(
                 `  ❌ Transactions failed for ${account.name}: ` +

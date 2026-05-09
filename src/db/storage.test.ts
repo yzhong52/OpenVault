@@ -157,9 +157,9 @@ describe('example console output', () => {
       { datetime: '2026-05-05', description: 'Anthropic',              amount: -313.60 },
       { datetime: '2026-04-25', description: 'Payroll deposit',        amount: 3200.00 },
     ]);
-    printTransactionSyncResult('Chequing', newTxs);
+    printTransactionSyncResult('Chequing', newTxs, 5);
     expect(spy.mock.calls.map((c: unknown[]) => c.join(' ')).join('\n')).toMatchInlineSnapshot(`
-      "  ✓ 3 new transaction(s) for Chequing:
+      "  ✓ 3 new transaction(s) for Chequing (2 already stored):
           Date        Description                Amount
           ----------  ----------------------  ---------
           2026-05-06  Progression Bouldering    -$23.10
@@ -173,8 +173,8 @@ describe('example console output', () => {
     saveSync(db, 'TD', 'https://td.com', [CHQ]);
     saveTransactions(db, 'TD', 'chq', [{ datetime: '2026-05-06', description: 'Coffee', amount: -5 }]);
     const newTxs = saveTransactions(db, 'TD', 'chq', [{ datetime: '2026-05-06', description: 'Coffee', amount: -5 }]);
-    printTransactionSyncResult('Chequing', newTxs);
-    expect(spy.mock.calls.map((c: unknown[]) => c.join(' ')).join('\n')).toMatchInlineSnapshot(`"  (no new transactions for Chequing)"`);
+    printTransactionSyncResult('Chequing', newTxs, 1);
+    expect(spy.mock.calls.map((c: unknown[]) => c.join(' ')).join('\n')).toMatchInlineSnapshot(`"  (no new transactions for Chequing (1 already stored))"`);
   });
 });
 
