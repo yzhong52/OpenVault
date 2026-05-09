@@ -4,7 +4,7 @@ import { exploreAccounts, type AccountType } from '../tasks/accounts';
 import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
-import { saveSync, listAccounts, mergeAccounts, type AccountRow } from '../db/storage';
+import { saveSync, listAccounts, mergeAccounts, type AccountRow, type AccountSyncDiff } from '../db/storage';
 import { prompt, readInstitutions, printAccountsTable, formatCents, selectFromList, launchBrowser } from './utils';
 
 function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitution: boolean }): string[] {
@@ -29,6 +29,59 @@ function accountLabels(rows: AccountRow[], { showInstitution }: { showInstitutio
     i.type.padEnd(w.type),
     i.balance.padStart(w.balance),
   ].filter(Boolean).join('  '));
+}
+
+function printAccountSyncDiff(
+  institutionName: string,
+  diff: AccountSyncDiff,
+  opts: { demo: boolean },
+): void {
+  if (diff.added.length > 0) {
+    console.log(`  + ${diff.added.length} new account(s) discovered:`);
+    printAccountsTable(diff.added.map(a => ({
+      institution: institutionName,
+      account:     a.name,
+      accountId:   a.accountId,
+      type:        a.type ?? '—',
+      currency:    a.currency ?? undefined,
+      balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
+    })), { demo: opts.demo, showInstitution: false });
+  }
+  if (diff.updated.length > 0) {
+    console.log(`  ~ ${diff.updated.length} account(s) updated:`);
+    for (const { account, changes } of diff.updated)
+      console.log(`      ${account.name}: ${changes.join(', ')}`);
+    console.log();
+  }
+  if (diff.missing.length > 0) {
+    console.log(`  - ${diff.missing.length} account(s) no longer found`);
+    console.log(`    (kept for historical records; delete manually if desired)`);
+    for (const a of diff.missing) console.log(`      ${a.accountName}`);
+    console.log();
+  }
+  if (diff.added.length === 0 && diff.updated.length === 0 && diff.missing.length === 0) {
+    console.log(`  (no changes for ${institutionName})`);
+  }
+}
+
+export function printAccountSyncResult(
+  institutionName: string,
+  diff: AccountSyncDiff,
+  allAccounts: AccountRow[],
+  opts: { demo: boolean },
+): void {
+  printAccountSyncDiff(institutionName, diff, opts);
+  if (allAccounts.length > 0) {
+    console.log(`  Current accounts for ${institutionName}:`);
+    printAccountsTable(allAccounts.map(row => ({
+      institution: row.institutionName,
+      account:     row.accountName,
+      accountId:   row.accountId !== row.accountName ? row.accountId : undefined,
+      type:        row.accountType ?? '—',
+      currency:    row.accountCurrency ?? undefined,
+      balance:     row.amountCents != null ? formatCents(row.amountCents) : '—',
+    })), { demo: opts.demo, showInstitution: false });
+  }
 }
 
 export function makeAccountsCommand(): Command {
@@ -89,17 +142,14 @@ export function makeAccountsCommand(): Command {
             });
 
           const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccountsMsg);
-          saveSync(db, inst.name, inst.url, accounts);
+          const diff: AccountSyncDiff = saveSync(db, inst.name, inst.url, accounts);
 
-          console.log(`\n${inst.name} accounts:`);
-          printAccountsTable(accounts.map(a => ({
-            institution: inst.name,
-            account:     a.name,
-            accountId:   a.accountId,
-            type:        a.type ?? '—',
-            currency:    a.currency ?? undefined,
-            balance:     a.balance != null ? formatCents(Math.round(a.balance * 100)) : '—',
-          })), { demo: opts.demo, showInstitution: false });
+          console.log();
+          printAccountSyncResult(
+            inst.name, diff,
+            listAccounts(db).filter(a => a.institutionName === inst.name),
+            { demo: opts.demo },
+          );
         }
       } catch (err) {
         console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);

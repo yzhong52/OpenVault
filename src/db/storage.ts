@@ -50,13 +50,63 @@ export function listAccounts(db: Db): AccountRow[] {
     .all();
 }
 
+export interface AccountChange {
+  account: Account;
+  changes: string[];
+}
+
+export interface AccountSyncDiff {
+  added:   Account[];
+  updated: AccountChange[];
+  missing: AccountRow[];
+}
+
 export function saveSync(
   db: Db,
   institutionName: string,
   institutionUrl: string,
   accountList: Account[],
-): void {
+): AccountSyncDiff {
   const institutionId = slugify(institutionName);
+
+  const existing = listAccounts(db).filter(r => r.institutionName === institutionName);
+  const existingByAccountId = new Map(existing.map(r => [r.accountId, r]));
+  const incomingIds = new Set(accountList.map(a => a.accountId ?? a.name));
+
+  const added: Account[] = [];
+  const updated: AccountChange[] = [];
+  const missing: AccountRow[] = existing.filter(r => !incomingIds.has(r.accountId));
+
+  for (const account of accountList) {
+    const rawAccountId = account.accountId ?? account.name;
+    const prev = existingByAccountId.get(rawAccountId);
+    if (!prev) {
+      added.push(account);
+    } else {
+      const changes: string[] = [];
+      const newCents = account.balance != null ? Math.round(account.balance * 100) : null;
+      if (prev.amountCents !== newCents) {
+        const fmt = (c: number | null) => {
+          if (c == null) return '—';
+          const abs = Math.abs(c) / 100;
+          const s = abs.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return c < 0 ? `-$${s}` : `$${s}`;
+        };
+        changes.push(`balance ${fmt(prev.amountCents)} → ${fmt(newCents)}`);
+      }
+      const newType = normalizeType(account.type) ?? null;
+      if ((prev.accountType ?? null) !== newType) {
+        changes.push(`type ${prev.accountType ?? '—'} → ${newType ?? '—'}`);
+      }
+      if ((prev.accountCurrency ?? null) !== (account.currency ?? null)) {
+        changes.push(`currency ${prev.accountCurrency ?? '—'} → ${account.currency ?? '—'}`);
+      }
+      if (prev.accountName !== account.name) {
+        changes.push(`name "${prev.accountName}" → "${account.name}"`);
+      }
+      if (changes.length > 0) updated.push({ account, changes });
+    }
+  }
 
   db.transaction((tx) => {
     tx.insert(institutions)
@@ -103,6 +153,8 @@ export function saveSync(
         .run();
     }
   });
+
+  return { added, updated, missing };
 }
 
 export interface NetWorthPoint {
@@ -176,7 +228,7 @@ export function saveTransactions(
   institutionName: string,
   rawAccountId: string,
   txList: Transaction[],
-): void {
+): Transaction[] {
   const institutionId = slugify(institutionName);
 
   const account = db
@@ -188,7 +240,9 @@ export function saveTransactions(
     ))
     .get();
 
-  if (!account) return;
+  if (!account) return [];
+
+  const inserted: Transaction[] = [];
 
   db.transaction((tx) => {
     for (const t of txList) {
@@ -198,7 +252,7 @@ export function saveTransactions(
         .digest('hex')
         .slice(0, 16);
 
-      tx.insert(transactionsTable)
+      const rows = tx.insert(transactionsTable)
         .values({
           accountId: account.id,
           transactionId: txId,
@@ -208,9 +262,21 @@ export function saveTransactions(
           currency: t.currency,
         })
         .onConflictDoNothing()
-        .run();
+        .returning({
+          datetime:    transactionsTable.datetime,
+          description: transactionsTable.description,
+          amountCents: transactionsTable.amountCents,
+          currency:    transactionsTable.currency,
+        })
+        .all();
+
+      if (rows.length > 0) {
+        inserted.push({ ...t, amount: rows[0].amountCents / 100 });
+      }
     }
   });
+
+  return inserted;
 }
 
 export function listTransactions(
