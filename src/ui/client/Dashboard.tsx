@@ -66,7 +66,7 @@ interface Props {
   history: NetWorthPoint[];
   transactions: TransactionRow[];
   onViewAll: () => void;
-  demo?: string;
+  demo?: boolean;
 }
 
 function greeting() {
