@@ -1,4 +1,4 @@
-# OpenVault — Codebase Guide
+# LedgerAgent — Codebase Guide
 
 ## What this project does
 
@@ -13,9 +13,9 @@ Logs into financial institution websites using a Claude-powered Playwright agent
 - `src/commands/config.ts` — `config gmail` command
 - `src/commands/utils.ts` — shared CLI helpers: `prompt`, `promptPassword`, `readInstitutions`, `writeInstitutions`
 - `src/keychain.ts` — macOS Keychain helpers
-- `src/config.ts` — reads/writes `~/.openvault/config.json` (non-sensitive settings)
+- `src/config.ts` — reads/writes `~/.ledgeragent/config.json` (non-sensitive settings)
 - `src/gmail.ts` — Gmail IMAP polling for automatic MFA code retrieval
-- `src/memory.ts` — per-institution, per-task agent memory; after each task Claude summarizes what worked into `~/.openvault/memory/<institution>.md` and injects it into the next session's system prompt
+- `src/memory.ts` — per-institution, per-task agent memory; after each task Claude summarizes what worked into `~/.ledgeragent/memory/<institution>.md` and injects it into the next session's system prompt
 - `src/agent/index.ts` — generic `runAgent()` loop, shared constants
 - `src/agent/browser.ts` — shared Playwright tool definitions and executors
 - `src/tasks/login.ts` — Claude-powered login agent (institution-agnostic)
@@ -43,7 +43,7 @@ npm run cli -- config gmail                                           # Configur
 
 ## Architecture of login.ts
 
-Instead of scraping HTML, OpenVault reads the page's ARIA accessibility tree after each action. This is far more compact than raw HTML and more stable than CSS selectors — elements are targeted by what they *are*, not where they happen to sit in the DOM:
+Instead of scraping HTML, LedgerAgent reads the page's ARIA accessibility tree after each action. This is far more compact than raw HTML and more stable than CSS selectors — elements are targeted by what they *are*, not where they happen to sit in the DOM:
 
 ```
 - document "Investing summary | Wealthsimple":
@@ -81,13 +81,13 @@ snapshot → Claude → tool call → execute → snapshot → …
 
 **Why two fill tools:** `fill()` is fast and reliable for text inputs. OTP fields in SPAs often gate the submit button on keystroke events, which `fill()` doesn't fire. `pressSequentially()` simulates real typing.
 
-**Error handling in tool execution:** Playwright errors (e.g. strict mode violations when a locator matches multiple elements) are caught and returned to Claude as the tool result string. Claude can then retry with a more specific selector (e.g. `click_testid`). Session notes are persisted to `~/.openvault/memory/<institution>.md` and injected into the system prompt on the next session so the agent doesn't repeat the same mistake.
+**Error handling in tool execution:** Playwright errors (e.g. strict mode violations when a locator matches multiple elements) are caught and returned to Claude as the tool result string. Claude can then retry with a more specific selector (e.g. `click_testid`). Session notes are persisted to `~/.ledgeragent/memory/<institution>.md` and injected into the system prompt on the next session so the agent doesn't repeat the same mistake.
 
 ## Agent memory
 
-OpenVault keeps lightweight per-institution memory so the agent can carry forward what it learned from previous runs without hardcoding institution-specific logic.
+LedgerAgent keeps lightweight per-institution memory so the agent can carry forward what it learned from previous runs without hardcoding institution-specific logic.
 
-**Where it lives:** Memory is stored in `~/.openvault/memory/<institution>.md`, where `<institution>` is a lowercase slug such as `wealthsimple.md`.
+**Where it lives:** Memory is stored in `~/.ledgeragent/memory/<institution>.md`, where `<institution>` is a lowercase slug such as `wealthsimple.md`.
 
 **Format:** Each file is Markdown with one section per task, for example:
 
@@ -111,7 +111,7 @@ OpenVault keeps lightweight per-institution memory so the agent can carry forwar
 
 ## Adding a new institution
 
-Run `npm run cli -- institution add`. The login agent is institution-agnostic — no code changes needed unless the site has unusual behaviour (e.g. non-standard OTP fields). Check saved snapshots in `~/.openvault/logs/` to see what the agent observed.
+Run `npm run cli -- institution add`. The login agent is institution-agnostic — no code changes needed unless the site has unusual behaviour (e.g. non-standard OTP fields). Check saved snapshots in `~/.ledgeragent/logs/` to see what the agent observed.
 
 ## Logs
 

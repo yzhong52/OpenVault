@@ -14,7 +14,7 @@ export interface Institution {
 
 export const INSTITUTIONS_FILE = path.join(DATA_DIR, 'institutions.json');
 export const PROFILE_DIR =
-  process.env.OPENVAULT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
+  process.env.LEDGERAGENT_PROFILE_DIR ?? path.join(DATA_DIR, 'browser-profile');
 
 export async function launchBrowser(): Promise<BrowserContext> {
   await fs.mkdir(PROFILE_DIR, { recursive: true });

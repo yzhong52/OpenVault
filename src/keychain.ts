@@ -1,6 +1,6 @@
 import { spawnSync } from 'child_process';
 
-const SERVICE = 'openvault';
+const SERVICE = 'ledgeragent';
 
 // Account key includes the institution name to avoid collisions when the
 // same email is used at multiple institutions.

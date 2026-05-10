@@ -210,7 +210,7 @@ app.get('/accounts', (c) => serveIndex(c));
 app.get('/transactions', (c) => serveIndex(c));
 
 const port = 3000;
-console.log(`Starting OpenVault UI server on http://localhost:${port}`);
+console.log(`Starting LedgerAgent UI server on http://localhost:${port}`);
 
 serve({
   fetch: app.fetch,

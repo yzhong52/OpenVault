@@ -4,23 +4,23 @@ import { loadConfig, saveConfig } from '../config';
 import { prompt, promptPassword } from './utils';
 
 export function makeConfigCommand(): Command {
-  const cmd = new Command('config').description('Manage OpenVault configuration');
+  const cmd = new Command('config').description('Manage LedgerAgent configuration');
 
   cmd
     .command('gmail')
     .description('Save Gmail credentials for MFA email reading')
     .action(async () => {
       console.log(`
-OpenVault can read MFA codes sent to your Gmail automatically, so you don't
+LedgerAgent can read MFA codes sent to your Gmail automatically, so you don't
 have to copy-paste them during sync.
 
-This requires a Gmail App Password — a 16-character code that lets OpenVault
+This requires a Gmail App Password — a 16-character code that lets LedgerAgent
 read your email without needing your Google account password.
 
 How to generate one:
   1. Go to https://myaccount.google.com/apppasswords
   2. Sign in and click "Create a new app password"
-  3. Name it "OpenVault", click Create
+  3. Name it "LedgerAgent", click Create
   4. Copy the 16-character password shown (no spaces)
 
 More info: faq/how_to_config_gmail_for_mfa.md

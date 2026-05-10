@@ -8,7 +8,7 @@ import { makeBrowserCommand } from './commands/browser';
 const program = new Command();
 
 program
-  .name('openvault')
+  .name('ledgeragent')
   .description('Agentic financial data aggregator');
 
 program.addCommand(makeInstitutionCommand());

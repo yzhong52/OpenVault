@@ -33,8 +33,8 @@ export function Sidebar({ page, setPage, demo, setDemo }: SidebarProps) {
         padding: '20px', display: 'flex', alignItems: 'center', gap: 10,
         borderBottom: '1px solid oklch(0.93 0.005 260)', minHeight: 60,
       }}>
-        <img src="/favicon.png" alt="OpenVault" width={28} height={28} style={{ borderRadius: 8, flexShrink: 0 }}/>
-        <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.02em' }}>OpenVault</span>
+        <img src="/favicon.png" alt="LedgerAgent" width={28} height={28} style={{ borderRadius: 8, flexShrink: 0 }}/>
+        <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.02em' }}>LedgerAgent</span>
       </div>
 
       <nav style={{ padding: '10px 8px', flex: 1 }}>

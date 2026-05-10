@@ -2,7 +2,7 @@
 
 ## What lives where
 
-Runtime state is stored outside the repo in `~/.openvault/`:
+Runtime state is stored outside the repo in `~/.ledgeragent/`:
 
 - `accounts.json` — saved institutions and usernames
 - `config.json` — non-secret config such as Gmail address
@@ -45,13 +45,13 @@ List all stored accounts and their latest balances:
 npm run cli -- accounts list
 ```
 
-Accessibility snapshots are saved to `~/.openvault/logs/<hostname>_<timestamp>_NNN.txt` after each `snapshot` tool call, useful for diagnosing selector issues.
+Accessibility snapshots are saved to `~/.ledgeragent/logs/<hostname>_<timestamp>_NNN.txt` after each `snapshot` tool call, useful for diagnosing selector issues.
 
 Only the most recent generated snapshots are retained per host. Older snapshot files for the same host are pruned automatically, while hand-named debug files are left alone.
 
 ## Agent memory
 
-Per-institution notes live in `~/.openvault/memory/<institution>.md`.
+Per-institution notes live in `~/.ledgeragent/memory/<institution>.md`.
 
 - Each file is Markdown with sections like `## login` and `## accounts`.
 - Notes are written only after successful task completion.
@@ -63,16 +63,16 @@ If a memory file looks wrong, open it directly and inspect the task section for 
 ## Debugging login issues
 
 - Re-run with `DEBUG=1` to see each Claude tool call and tool result.
-- Check `~/.openvault/logs/*.txt` to inspect the ARIA snapshots the agent actually saw.
+- Check `~/.ledgeragent/logs/*.txt` to inspect the ARIA snapshots the agent actually saw.
 - If the institution uses a multi-step or unusual login widget, start by reproducing it with `npm run cli -- sync --institution "<name>"` before changing prompts or tools.
 - If MFA is involved, confirm whether the code was expected from Gmail or manual entry.
 
 ## Inspecting synced data
 
-Data is stored in `~/.openvault/data.db` (SQLite). To query it:
+Data is stored in `~/.ledgeragent/data.db` (SQLite). To query it:
 
 ```bash
-sqlite3 ~/.openvault/data.db "
+sqlite3 ~/.ledgeragent/data.db "
   SELECT i.name, a.name, a.type, b.amount_cents
   FROM balances b
   JOIN accounts a ON a.id = b.account_id
