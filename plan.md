@@ -22,7 +22,7 @@ sync.
 ```sql
 holdings (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  accountId      TEXT    NOT NULL,  -- FK → accounts.accountId
+  accountId      INTEGER NOT NULL,  -- FK → accounts.id (surrogate PK)
   syncId         INTEGER NOT NULL,  -- FK → syncs.id
   symbol         TEXT    NOT NULL,  -- e.g. "XEQT", "AAPL", "BTC"
   name           TEXT,              -- display name, e.g. "iShares Core Equity ETF"
@@ -30,7 +30,7 @@ holdings (
   pricePerUnit   INTEGER NOT NULL,  -- in cents at time of sync
   marketValue    INTEGER NOT NULL,  -- quantity × pricePerUnit, in cents
   costBasis      INTEGER,           -- nullable — only if brokerage exposes it
-  currency       TEXT    NOT NULL DEFAULT 'CAD'
+  currency       TEXT
 )
 ```
 
@@ -42,10 +42,10 @@ snapshot per day without ambiguity.
 
 | Table | Change | Reason |
 |-------|--------|--------|
-| `accounts` | Add `subtype TEXT` (e.g. `"tfsa"`, `"rrsp"`, `"margin"`, `"crypto"`) | Investment accounts have meaningful subtypes for grouping |
+| `accounts` | No change needed | `type` is already a free-form text field — the agent can write `"tfsa"`, `"rrsp"`, `"margin"`, `"crypto"` directly into it |
 | `syncs` | No change needed | Already records per-institution sync time |
 | `balances` | No change needed | Investment account balance (total market value) is written here by the sync agent, same as today |
-| `transactions` | Add optional `type TEXT` (e.g. `"buy"`, `"sell"`, `"dividend"`, `"transfer"`) | Allows filtering investment activity later without a separate table |
+| `transactions` | No change needed | Buy/sell history is out of scope for net worth tracking; revisit when investment transactions are added |
 
 **Net worth calculation stays the same.** The `balances` table already holds a single total per
 account per date. For investment accounts the agent writes the total portfolio market value as

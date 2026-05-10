@@ -9,7 +9,7 @@ export const institutions = sqliteTable('institutions', {
 export const accounts = sqliteTable('accounts', {
   id:                 integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }), // surrogate PK; used internally for FK references
   institutionId:      text('institution_id').notNull().references(() => institutions.id),
-  accountId:          text('account_id').notNull(), // raw account identifier as reported by the institution (e.g. last 4 digits); unique within an institution
+  accountId:          text('account_id').notNull(), // raw identifier as reported by the institution (e.g. last 4 digits); may change across syncs — use accounts.id for stable FK references
   name:               text('name').notNull(),
   type:               text('type'),
   currency:           text('currency'),
