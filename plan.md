@@ -30,9 +30,14 @@ holdings (
   pricePerUnit   INTEGER NOT NULL,  -- in cents at time of sync
   marketValue    INTEGER NOT NULL,  -- quantity × pricePerUnit, in cents
   costBasis      INTEGER,           -- nullable — only if brokerage exposes it
-  currency       TEXT
+  currency       TEXT,
+  UNIQUE (accountId, syncId, symbol)
 )
 ```
+
+The same symbol (e.g. `VFV`) can appear in multiple rows with different `accountId` values — one
+per account that holds it. The unique constraint prevents duplicate inserts if the agent runs
+twice for the same sync.
 
 **Why link to `syncId` and not `date`?**
 Multiple syncs could occur on the same day. Linking to `syncId` lets us always pick the latest
