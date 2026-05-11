@@ -318,6 +318,51 @@ export function listTransactions(
   return base.orderBy(desc(transactionsTable.datetime)).all();
 }
 
+export interface HoldingRow {
+  institutionName: string;
+  accountName: string;
+  symbol: string;
+  name: string | null;
+  quantity: number;
+  pricePerUnitCents: number;
+  marketValueCents: number;
+  costBasisCents: number | null;
+  currency: string | null;
+}
+
+export function listHoldings(db: Db): HoldingRow[] {
+  const rows = db
+    .select({
+      internalAccountId: accountsTable.id,
+      syncId:            holdingsTable.syncId,
+      institutionName:   institutions.name,
+      accountName:       accountsTable.name,
+      symbol:            holdingsTable.symbol,
+      name:              holdingsTable.name,
+      quantity:          holdingsTable.quantity,
+      pricePerUnitCents: holdingsTable.pricePerUnit,
+      marketValueCents:  holdingsTable.marketValue,
+      costBasisCents:    holdingsTable.costBasis,
+      currency:          holdingsTable.currency,
+    })
+    .from(holdingsTable)
+    .innerJoin(accountsTable, eq(holdingsTable.accountId, accountsTable.id))
+    .innerJoin(institutions, eq(accountsTable.institutionId, institutions.id))
+    .all();
+
+  // For each account, keep only the rows from the latest sync
+  const latestSync = new Map<number, number>();
+  for (const r of rows) {
+    const cur = latestSync.get(r.internalAccountId) ?? -1;
+    if (r.syncId > cur) latestSync.set(r.internalAccountId, r.syncId);
+  }
+
+  return rows
+    .filter(r => latestSync.get(r.internalAccountId) === r.syncId)
+    .sort((a, b) => b.marketValueCents - a.marketValueCents)
+    .map(({ internalAccountId: _a, syncId: _s, ...rest }) => rest);
+}
+
 export function saveHoldings(
   db: Db,
   institutionName: string,

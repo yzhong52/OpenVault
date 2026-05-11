@@ -23,6 +23,18 @@ export interface TransactionRow {
   currency: string | null;
 }
 
+export interface HoldingRow {
+  institutionName: string;
+  accountName: string;
+  symbol: string;
+  name: string | null;
+  quantity: number;
+  pricePerUnitCents: number;
+  marketValueCents: number;
+  costBasisCents: number | null;
+  currency: string | null;
+}
+
 export type DemoMode = boolean;
 
 export function demoModeFromUrl(): boolean {
@@ -48,5 +60,11 @@ export async function fetchNetWorth(demo: DemoMode): Promise<NetWorthPoint[]> {
 export async function fetchTransactions(demo: DemoMode): Promise<TransactionRow[]> {
   const res = await fetch(`/api/transactions${demoParam(demo)}`);
   if (!res.ok) throw new Error('Failed to fetch transactions');
+  return res.json();
+}
+
+export async function fetchHoldings(demo: DemoMode): Promise<HoldingRow[]> {
+  const res = await fetch(`/api/holdings${demoParam(demo)}`);
+  if (!res.ok) throw new Error('Failed to fetch holdings');
   return res.json();
 }
