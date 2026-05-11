@@ -4,18 +4,64 @@ import { fmtCents } from './utils';
 import { Icon } from './Icons';
 import { InstBadge } from './InstBadge';
 
+type GroupBy = 'institution' | 'type';
+
 export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupBy>('institution');
+
   const institutions = Array.from(new Set(accounts.map(a => a.institutionName)));
+
+  const groups: { key: string; label: string; accts: AccountRow[] }[] =
+    groupBy === 'institution'
+      ? institutions.map(inst => ({
+          key: inst,
+          label: inst,
+          accts: accounts.filter(a => a.institutionName === inst),
+        }))
+      : Array.from(new Set(accounts.map(a => a.accountType ?? 'Unknown'))).map(type => ({
+          key: type,
+          label: type,
+          accts: accounts.filter(a => (a.accountType ?? 'Unknown') === type),
+        }));
+
+  const handleGroupBy = (mode: GroupBy) => {
+    setGroupBy(mode);
+    setExpanded(null);
+  };
 
   return (
     <div style={{ padding: '32px 36px', maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>Accounts</h1>
-        <p style={{ fontSize: 14, color: 'oklch(0.55 0.01 260)', marginTop: 3 }}>
-          {accounts.length} account{accounts.length !== 1 ? 's' : ''} across{' '}
-          {institutions.length} institution{institutions.length !== 1 ? 's' : ''}
-        </p>
+      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>Accounts</h1>
+          <p style={{ fontSize: 14, color: 'oklch(0.55 0.01 260)', marginTop: 3 }}>
+            {accounts.length} account{accounts.length !== 1 ? 's' : ''} across{' '}
+            {institutions.length} institution{institutions.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: 'oklch(0.94 0.005 260)', borderRadius: 8, padding: 3,
+        }}>
+          {(['institution', 'type'] as GroupBy[]).map(mode => (
+            <button
+              key={mode}
+              onClick={() => handleGroupBy(mode)}
+              style={{
+                padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                fontSize: 12.5, fontWeight: 500, fontFamily: 'inherit',
+                background: groupBy === mode ? '#fff' : 'transparent',
+                color: groupBy === mode ? 'oklch(0.15 0.01 260)' : 'oklch(0.55 0.01 260)',
+                boxShadow: groupBy === mode ? '0 1px 3px oklch(0 0 0 / 0.08)' : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              {mode === 'institution' ? 'By institution' : 'By type'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {accounts.length === 0 && (
@@ -30,18 +76,17 @@ export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {institutions.map(inst => {
-          const accts = accounts.filter(a => a.institutionName === inst);
+        {groups.map(({ key, label, accts }) => {
           const total = accts.reduce((s, a) => s + (a.amountCents ?? 0), 0);
-          const open  = expanded === inst;
+          const open  = expanded === key;
 
           return (
-            <div key={inst} style={{
+            <div key={key} style={{
               background: '#fff', borderRadius: 12,
               border: '1px solid oklch(0.91 0.005 260)', overflow: 'hidden',
             }}>
               <button
-                onClick={() => setExpanded(open ? null : inst)}
+                onClick={() => setExpanded(open ? null : key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 14,
                   width: '100%', padding: '16px 22px',
@@ -51,11 +96,25 @@ export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'oklch(0.98 0.003 60)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
-                <InstBadge name={inst} size={36}/>
+                {groupBy === 'institution' ? (
+                  <InstBadge name={label} size={36}/>
+                ) : (
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: 'oklch(0.93 0.015 260)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Icon name="accounts" size={18}/>
+                  </div>
+                )}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{inst}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{label}</div>
                   <div style={{ fontSize: 12.5, color: 'oklch(0.6 0.01 260)', marginTop: 2 }}>
                     {accts.length} account{accts.length !== 1 ? 's' : ''}
+                    {groupBy === 'type' && (() => {
+                      const insts = Array.from(new Set(accts.map(a => a.institutionName)));
+                      return ` · ${insts.join(', ')}`;
+                    })()}
                   </div>
                 </div>
                 <div style={{ marginRight: 8 }}>
@@ -79,21 +138,32 @@ export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
                   {accts.map((a, i) => (
                     <div key={a.accountId} style={{
                       display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '13px 22px 13px 72px',
+                      padding: groupBy === 'institution'
+                        ? '13px 22px 13px 72px'
+                        : '13px 22px 13px 22px',
                       borderBottom: i < accts.length - 1 ? '1px solid oklch(0.95 0.003 260)' : 'none',
                       background: 'oklch(0.985 0.003 60)',
                     }}>
+                      {groupBy === 'type' && (
+                        <InstBadge name={a.institutionName} size={28}/>
+                      )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
                           {a.accountName}
                           {a.accountId && (
-                            <span style={{ fontSize: 11, fontWeight: 400, color: 'oklch(0.6 0.01 260)', background: 'oklch(0.96 0.005 260)', padding: '2px 6px', borderRadius: 4, fontFamily: "'DM Mono', monospace" }}>
+                            <span style={{
+                              fontSize: 11, fontWeight: 400,
+                              color: 'oklch(0.6 0.01 260)', background: 'oklch(0.96 0.005 260)',
+                              padding: '2px 6px', borderRadius: 4, fontFamily: "'DM Mono', monospace",
+                            }}>
                               {a.accountId}
                             </span>
                           )}
                         </div>
                         <div style={{ fontSize: 12, color: 'oklch(0.6 0.01 260)', marginTop: 2 }}>
-                          {[a.accountType, a.accountCurrency].filter(Boolean).join(' · ')}
+                          {groupBy === 'type'
+                            ? [a.institutionName, a.accountCurrency].filter(Boolean).join(' · ')
+                            : [a.accountType, a.accountCurrency].filter(Boolean).join(' · ')}
                           {a.latestDate && ` · synced ${a.latestDate}`}
                         </div>
                       </div>
