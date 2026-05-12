@@ -41,27 +41,20 @@ export function AccountsPage({ accounts }: { accounts: AccountRow[] }) {
           </p>
         </div>
 
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          background: 'oklch(0.94 0.005 260)', borderRadius: 8, padding: 3,
-        }}>
-          {(['institution', 'type'] as GroupBy[]).map(mode => (
-            <button
-              key={mode}
-              onClick={() => handleGroupBy(mode)}
-              style={{
-                padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                fontSize: 12.5, fontWeight: 500, fontFamily: 'inherit',
-                background: groupBy === mode ? '#fff' : 'transparent',
-                color: groupBy === mode ? 'oklch(0.15 0.01 260)' : 'oklch(0.55 0.01 260)',
-                boxShadow: groupBy === mode ? '0 1px 3px oklch(0 0 0 / 0.08)' : 'none',
-                transition: 'all 0.15s',
-              }}
-            >
-              {mode === 'institution' ? 'By institution' : 'By type'}
-            </button>
-          ))}
-        </div>
+        <select
+          value={groupBy}
+          onChange={e => handleGroupBy(e.target.value as GroupBy)}
+          style={{
+            padding: '5px 10px', borderRadius: 7,
+            border: '1px solid oklch(0.88 0.005 260)',
+            background: '#fff', color: 'oklch(0.3 0.01 260)',
+            fontSize: 12.5, fontWeight: 500, fontFamily: 'inherit',
+            cursor: 'pointer', outline: 'none',
+          }}
+        >
+          <option value="institution">By institution</option>
+          <option value="type">By type</option>
+        </select>
       </div>
 
       {accounts.length === 0 && (
