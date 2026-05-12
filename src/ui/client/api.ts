@@ -2,6 +2,7 @@ export interface AccountRow {
   institutionName: string;
   accountName: string;
   accountType: string | null;
+  accountCategory: string | null;
   accountCurrency: string | null;
   accountId: string;
   latestDate: string | null;

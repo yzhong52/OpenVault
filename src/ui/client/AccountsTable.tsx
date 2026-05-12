@@ -36,6 +36,26 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  'Cash':               { bg: 'oklch(0.93 0.06 145)', text: 'oklch(0.32 0.13 145)' },
+  'Credit':             { bg: 'oklch(0.92 0.07 20)',  text: 'oklch(0.38 0.15 20)'  },
+  'Brokerage':          { bg: 'oklch(0.92 0.07 240)', text: 'oklch(0.36 0.14 240)' },
+  'Managed Investment': { bg: 'oklch(0.92 0.06 270)', text: 'oklch(0.33 0.15 270)' },
+};
+
+function CategoryBadge({ category }: { category: string }) {
+  const { bg, text } = CATEGORY_COLORS[category] ?? DEFAULT_TYPE_COLOR;
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 600, letterSpacing: '0.04em',
+      textTransform: 'uppercase', background: bg, color: text,
+      padding: '2px 6px', borderRadius: 4,
+    }}>
+      {category}
+    </span>
+  );
+}
+
 type GroupBy = 'institution' | 'type';
 
 interface Props {
@@ -221,6 +241,7 @@ export function AccountsPage({ accounts, holdings }: Props) {
                               display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
                             }}>
                               {a.accountType && <TypeBadge type={a.accountType}/>}
+                              {a.accountCategory && <CategoryBadge category={a.accountCategory}/>}
                               {a.accountCurrency && <span>{a.accountCurrency}</span>}
                               {a.latestDate && (
                                 <span>{a.accountCurrency ? '· ' : ''}synced {a.latestDate}</span>

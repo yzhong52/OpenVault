@@ -147,7 +147,7 @@ export function makeAccountsCommand(): Command {
 
           const allSyncedAccounts = listAccounts(db).filter(a => a.institutionName === inst.name);
           const investmentAccounts = accounts.filter(
-            a => a.type === 'Investment' || a.type === 'Brokerage',
+            a => a.category === 'Brokerage' || a.category === 'Managed Investment',
           );
           for (const account of investmentAccounts) {
             const row = allSyncedAccounts.find(

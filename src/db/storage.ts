@@ -2,7 +2,7 @@
 import { createHash } from 'crypto';
 import { eq, desc, and, gte } from 'drizzle-orm';
 import type { Account } from '../tasks/accounts';
-import { ACCOUNT_TYPES } from '../tasks/accounts';
+import { ACCOUNT_TYPES, ACCOUNT_CATEGORIES } from '../tasks/accounts';
 import type { Transaction } from '../tasks/transactions';
 import type { Holding } from '../tasks/holdings';
 import { type Db } from '.';
@@ -24,12 +24,18 @@ function normalizeType(raw: string | undefined): string | undefined {
   return ACCOUNT_TYPES.find(t => t.toLowerCase() === raw.toLowerCase()) ?? raw.toLowerCase();
 }
 
+function normalizeCategory(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  return ACCOUNT_CATEGORIES.find(c => c.toLowerCase() === raw.toLowerCase()) ?? undefined;
+}
+
 
 export interface AccountRow {
   id: number;
   institutionName: string;
   accountName: string;
   accountType: string | null;
+  accountCategory: string | null;
   accountCurrency: string | null;
   accountId: string;
   latestDate: string | null;
@@ -43,6 +49,7 @@ export function listAccounts(db: Db): AccountRow[] {
       institutionName: institutions.name,
       accountName:     accountsTable.name,
       accountType:     accountsTable.type,
+      accountCategory: accountsTable.category,
       accountCurrency: accountsTable.currency,
       accountId:       accountsTable.accountId,
       latestDate:      accountsTable.latestDate,
@@ -102,6 +109,10 @@ export function saveSync(
       if ((prev.accountType ?? null) !== newType) {
         changes.push(`type ${prev.accountType ?? '—'} → ${newType ?? '—'}`);
       }
+      const newCategory = normalizeCategory(account.category) ?? null;
+      if ((prev.accountCategory ?? null) !== newCategory) {
+        changes.push(`category ${prev.accountCategory ?? '—'} → ${newCategory ?? '—'}`);
+      }
       if ((prev.accountCurrency ?? null) !== (account.currency ?? null)) {
         changes.push(`currency ${prev.accountCurrency ?? '—'} → ${account.currency ?? '—'}`);
       }
@@ -135,14 +146,14 @@ export function saveSync(
       const { id: intId } = tx.insert(accountsTable)
         .values({
           institutionId, accountId: rawAccountId, name: account.name,
-          type: normalizeType(account.type), currency: account.currency,
-          latestDate: today, latestAmountCents: amountCents,
+          type: normalizeType(account.type), category: normalizeCategory(account.category),
+          currency: account.currency, latestDate: today, latestAmountCents: amountCents,
         })
         .onConflictDoUpdate({
           target: [accountsTable.institutionId, accountsTable.accountId],
           set: {
-            type: normalizeType(account.type), currency: account.currency,
-            latestDate: today, latestAmountCents: amountCents,
+            type: normalizeType(account.type), category: normalizeCategory(account.category),
+            currency: account.currency, latestDate: today, latestAmountCents: amountCents,
           },
         })
         .returning({ id: accountsTable.id })
