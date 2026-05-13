@@ -141,7 +141,7 @@ export function AccountsPage({ accounts, holdings }: Props) {
                   display: 'flex', alignItems: 'center', gap: 14,
                   width: '100%', padding: '16px 22px',
                   border: 'none', background: 'transparent', cursor: 'pointer',
-                  textAlign: 'left', fontFamily: 'inherit',
+                  textAlign: 'left', fontFamily: 'inherit', color: 'inherit',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-row-hover)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
