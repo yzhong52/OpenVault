@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
+import type { ContentBlockParam, MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -51,8 +51,12 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
-function pageStateMessage(snapshot: string): { type: 'text'; text: string } {
-  return { type: 'text', text: `Current page state:\n${snapshot}` };
+// Replaces the snapshot block in archived user messages to save input tokens.
+// Only the latest snapshot is useful to Claude; prior ones are dead weight.
+const SNAPSHOT_PLACEHOLDER = { type: 'text' as const, text: '[snapshot]' };
+
+function pageStateMessage(snap: string): { type: 'text'; text: string } {
+  return { type: 'text', text: `Current page state:\n${snap}` };
 }
 
 function sessionHostSlug(folderName: string): string | null {
@@ -118,8 +122,10 @@ export async function runAgent<T>(
 ): Promise<T> {
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
+  const snapshotsDir = `${sessionDir}/snapshots`;
+  await fs.mkdir(snapshotsDir, { recursive: true });
 
-  async function takeSnapshot(): Promise<string> {
+  async function takeSnapshot(): Promise<{ snap: string; snapFile: string }> {
     // Wait for the page to settle before snapshotting. Without this, a snapshot taken
     // immediately after a click (e.g. clicking Log In) captures the pre-navigation DOM
     // because domcontentloaded fires before the new page finishes rendering — causing the
@@ -138,7 +144,7 @@ export async function runAgent<T>(
     }
     if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
     snap = redactSensitive(snap);
-    const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+    const snapFile = `${snapshotsDir}/${String(++snapCount).padStart(3, '0')}.txt`;
     await fs.writeFile(snapFile, snap);
     if (VERBOSE) {
       const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
@@ -146,24 +152,30 @@ export async function runAgent<T>(
     } else {
       console.log(`📸 Snapshot`);
     }
-    return snap;
+    return { snap, snapFile };
   }
 
-  const messages: MessageParam[] = [{
-    role: 'user',
-    content: [{ type: 'text', text: initialMessage }, pageStateMessage(await takeSnapshot())],
-  }];
+  // messages holds compressed history. pendingPrefix is the non-snapshot content for the next
+  // user turn (initial message block, or tool results). At the top of each turn a snapshot is
+  // taken and appended to form the live userContent sent to the API; SNAPSHOT_PLACEHOLDER is
+  // appended instead when archiving into messages.
+  const messages: MessageParam[] = [];
+  const initialBlock = { type: 'text' as const, text: initialMessage };
+  let pendingPrefix: ContentBlockParam[] = [initialBlock];
 
   const logFile = `${sessionDir}/${logName}.md`;
   await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`);
 
   for (let turn = 0; turn < maxTurns; turn++) {
-    const lastMsg = messages[messages.length - 1];
+    const { snap, snapFile } = await takeSnapshot();
+    // API receives the full snapshot content; the log records the file path instead
+    // so conversation logs stay readable without the full ARIA tree on every turn.
+    const userContent = [...pendingPrefix, pageStateMessage(snap)];
+
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
     await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
     await fs.appendFile(logFile, `### User → Agent\n\n`);
-    await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify(lastMsg.content, null, 2))}\n\`\`\`\n\n`);
-    await fs.appendFile(logFile, `### Agent → User\n\n`);
+    await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify([...pendingPrefix, pageStateMessage(snapFile)], null, 2))}\n\`\`\`\n\n`);
 
     const response = await getClient().messages.create({
       model: MODEL,
@@ -171,14 +183,18 @@ export async function runAgent<T>(
       system: systemPrompt,
       tools,
       tool_choice: { type: 'any' },
-      messages,
+      messages: [...messages, { role: 'user', content: userContent }],
     });
 
+    await fs.appendFile(logFile, `### Agent → User\n\n`);
     await fs.appendFile(
       logFile,
       `\`\`\`json\n${redactSensitive(JSON.stringify(response, null, 2))}\n\`\`\`\n\n`,
     );
 
+    // Archive with placeholder — the snapshot is only needed live; compressing it
+    // here keeps the history lean for every subsequent turn's API call.
+    messages.push({ role: 'user', content: [...pendingPrefix, SNAPSHOT_PLACEHOLDER] });
     messages.push({ role: 'assistant', content: response.content });
 
     const toolUses = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
@@ -240,9 +256,9 @@ export async function runAgent<T>(
     }
 
     if (!result) {
-      // Take one snapshot after all tools in this turn complete, so Claude sees the
-      // cumulative page state rather than intermediate states between tool calls.
-      messages.push({ role: 'user', content: [...toolResults, pageStateMessage(await takeSnapshot())] });
+      // Store tool results as the prefix for the next turn; the snapshot is taken
+      // at the top of that turn so it captures the final post-tool page state.
+      pendingPrefix = toolResults;
     } else {
       return result.value;
     }
