@@ -47,11 +47,6 @@ and may misrender. Fix: expose the surrogate `id` PK in `AccountRow` and use tha
 categories are silently discarded and stored as `null`, causing the account to never trigger
 holdings sync. At minimum log a warning.
 
-### Credit card balance sign is inconsistent
-Some institutions report credit card balances as a positive number (amount owed), others as
-negative (liability). The UI should normalize this — credit card balances should always display
-as positive (amount owed) regardless of how the institution reports them.
-
 ---
 
 ## Notes / Product Decisions
