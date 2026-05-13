@@ -72,6 +72,11 @@ export interface AccountSyncDiff {
   missing: AccountRow[];
 }
 
+function toCents(amount: number | undefined | null): number | null {
+  if (amount == null) return null;
+  return Math.round(amount * 100);
+}
+
 export function saveSync(
   db: Db,
   institutionName: string,
@@ -95,7 +100,7 @@ export function saveSync(
       added.push(account);
     } else {
       const changes: string[] = [];
-      const newCents = account.balance != null ? Math.round(account.balance * 100) : null;
+      const newCents = toCents(account.balance);
       if (prev.amountCents !== newCents) {
         const fmt = (c: number | null) => {
           if (c == null) return '—';
@@ -141,7 +146,15 @@ export function saveSync(
 
     for (const account of accountList) {
       const rawAccountId = account.accountId ?? account.name;
-      const amountCents = account.balance != null ? Math.round(account.balance * 100) : null;
+      const amountCents = toCents(account.balance);
+
+      if (normalizeCategory(account.category) === 'Credit' && amountCents !== null && amountCents > 0) {
+        console.warn(
+          `[saveSync] Credit account "${account.name}" has a positive balance ` +
+          `(${amountCents / 100}). Expected negative (amount owed). ` +
+          `This may indicate an overpayment credit or the agent reported the wrong sign.`
+        );
+      }
 
       const { id: intId } = tx.insert(accountsTable)
         .values({

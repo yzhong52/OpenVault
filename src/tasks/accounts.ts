@@ -73,7 +73,7 @@ const REPORT_TOOL: Tool = {
               description: 'Behavioral category. Use "Cash" for spending/savings accounts; "Credit" for liabilities (credit cards, mortgages, lines of credit); "Brokerage" for self-directed investment accounts where the user picks individual positions; "Managed Investment" for robo-advisor or professionally managed portfolios.',
             },
             currency: { type: 'string', description: 'ISO 4217 currency code if known, e.g. CAD, USD. Omit for default domestic currency.' },
-            balance:  { type: 'number', description: 'Current balance as a plain number, e.g. 12345.67 or -500. Omit currency symbols and commas.' },
+            balance:  { type: 'number', description: 'Current balance as a plain number. Omit currency symbols and commas. For Credit accounts (credit cards, lines of credit, mortgages): report negative when you owe money (normal carry, e.g. -500 for a $500 balance owed), report positive only when the institution owes you (e.g. overpayment credit). Do not mirror the page sign blindly — use the semantic direction.' },
           },
           required: ['name'],
         },
