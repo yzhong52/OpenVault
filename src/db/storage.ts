@@ -72,9 +72,9 @@ export interface AccountSyncDiff {
   missing: AccountRow[];
 }
 
-function normalizeBalanceCents(balance: number | undefined | null): number | null {
-  if (balance == null) return null;
-  return Math.round(balance * 100);
+function toCents(amount: number | undefined | null): number | null {
+  if (amount == null) return null;
+  return Math.round(amount * 100);
 }
 
 export function saveSync(
@@ -100,7 +100,7 @@ export function saveSync(
       added.push(account);
     } else {
       const changes: string[] = [];
-      const newCents = normalizeBalanceCents(account.balance);
+      const newCents = toCents(account.balance);
       if (prev.amountCents !== newCents) {
         const fmt = (c: number | null) => {
           if (c == null) return '—';
@@ -146,7 +146,7 @@ export function saveSync(
 
     for (const account of accountList) {
       const rawAccountId = account.accountId ?? account.name;
-      const amountCents = normalizeBalanceCents(account.balance);
+      const amountCents = toCents(account.balance);
 
       const { id: intId } = tx.insert(accountsTable)
         .values({
