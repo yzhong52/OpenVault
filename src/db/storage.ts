@@ -148,6 +148,14 @@ export function saveSync(
       const rawAccountId = account.accountId ?? account.name;
       const amountCents = toCents(account.balance);
 
+      if (normalizeCategory(account.category) === 'Credit' && amountCents !== null && amountCents < 0) {
+        console.warn(
+          `[saveSync] Credit account "${account.name}" has a negative balance ` +
+          `(${amountCents / 100}). Expected positive (amount owed). ` +
+          `This may indicate the agent reported the wrong sign.`
+        );
+      }
+
       const { id: intId } = tx.insert(accountsTable)
         .values({
           institutionId, accountId: rawAccountId, name: account.name,
