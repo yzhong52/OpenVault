@@ -53,9 +53,10 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
 
 const SNAPSHOT_PLACEHOLDER = { type: 'text' as const, text: '[snapshot]' };
 
-function pageStateMessage(snapshot: string): { type: 'text'; text: string } {
-  return { type: 'text', text: `Current page state:\n${snapshot}` };
+function pageStateMessage(snap: string): { type: 'text'; text: string } {
+  return { type: 'text', text: `Current page state:\n${snap}` };
 }
+
 
 
 function sessionHostSlug(folderName: string): string | null {
@@ -124,7 +125,7 @@ export async function runAgent<T>(
   const snapshotsDir = `${sessionDir}/snapshots`;
   await fs.mkdir(snapshotsDir, { recursive: true });
 
-  async function takeSnapshot(): Promise<string> {
+  async function takeSnapshot(): Promise<{ snap: string; snapFile: string }> {
     // Wait for the page to settle before snapshotting. Without this, a snapshot taken
     // immediately after a click (e.g. clicking Log In) captures the pre-navigation DOM
     // because domcontentloaded fires before the new page finishes rendering — causing the
@@ -151,7 +152,7 @@ export async function runAgent<T>(
     } else {
       console.log(`📸 Snapshot`);
     }
-    return snap;
+    return { snap, snapFile };
   }
 
   // messages holds compressed history. pendingPrefix is the non-snapshot content for the next
@@ -166,12 +167,13 @@ export async function runAgent<T>(
   await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`);
 
   for (let turn = 0; turn < maxTurns; turn++) {
-    const userContent = [...pendingPrefix, pageStateMessage(await takeSnapshot())];
+    const { snap, snapFile } = await takeSnapshot();
+    const userContent = [...pendingPrefix, pageStateMessage(snap)];
 
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
     await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
     await fs.appendFile(logFile, `### User → Agent\n\n`);
-    await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify(userContent, null, 2))}\n\`\`\`\n\n`);
+    await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify([...pendingPrefix, pageStateMessage(snapFile)], null, 2))}\n\`\`\`\n\n`);
 
     const response = await getClient().messages.create({
       model: MODEL,
