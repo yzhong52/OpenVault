@@ -64,19 +64,19 @@ function StatCard({ label, cents, sub, accent }: {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{value}</div>
       {sub && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{sub}</div>}
-      {hovered && cents !== null && (
-        <div style={{
-          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'var(--bg-tooltip, oklch(0.2 0.01 260))',
-          color: 'var(--text-tooltip, oklch(0.95 0.005 260))',
-          fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 500,
-          padding: '5px 10px', borderRadius: 6, whiteSpace: 'nowrap',
-          pointerEvents: 'none', zIndex: 10,
-        }}>
-          {fmtCents(cents)}
-        </div>
-      )}
+      <div style={{
+        position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'var(--bg-tooltip, oklch(0.2 0.01 260))',
+        color: 'var(--text-tooltip, oklch(0.95 0.005 260))',
+        fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 500,
+        padding: '5px 10px', borderRadius: 6, whiteSpace: 'nowrap',
+        pointerEvents: 'none', zIndex: 10,
+        opacity: hovered && cents !== null ? 1 : 0,
+        transition: 'opacity 0.15s ease',
+      }}>
+        {fmtCents(cents)}
+      </div>
     </div>
   );
 }
