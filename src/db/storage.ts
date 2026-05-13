@@ -72,6 +72,11 @@ export interface AccountSyncDiff {
   missing: AccountRow[];
 }
 
+function normalizeBalanceCents(balance: number | undefined | null): number | null {
+  if (balance == null) return null;
+  return Math.round(balance * 100);
+}
+
 export function saveSync(
   db: Db,
   institutionName: string,
@@ -95,7 +100,7 @@ export function saveSync(
       added.push(account);
     } else {
       const changes: string[] = [];
-      const newCents = account.balance != null ? Math.round(account.balance * 100) : null;
+      const newCents = normalizeBalanceCents(account.balance);
       if (prev.amountCents !== newCents) {
         const fmt = (c: number | null) => {
           if (c == null) return '—';
@@ -141,7 +146,7 @@ export function saveSync(
 
     for (const account of accountList) {
       const rawAccountId = account.accountId ?? account.name;
-      const amountCents = account.balance != null ? Math.round(account.balance * 100) : null;
+      const amountCents = normalizeBalanceCents(account.balance);
 
       const { id: intId } = tx.insert(accountsTable)
         .values({
@@ -178,6 +183,14 @@ export interface NetWorthPoint {
 }
 
 export function getNetWorthHistory(db: Db): NetWorthPoint[] {
+  const creditAccountIds = new Set(
+    db.select({ id: accountsTable.id })
+      .from(accountsTable)
+      .where(eq(accountsTable.category, 'Credit'))
+      .all()
+      .map(a => a.id)
+  );
+
   const allBalances = db
     .select({
       accountId: balances.accountId,
@@ -213,8 +226,8 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
     }
 
     let dailyTotal = 0;
-    for (const amount of Object.values(currentBalances)) {
-      dailyTotal += amount;
+    for (const [id, amount] of Object.entries(currentBalances)) {
+      dailyTotal += creditAccountIds.has(Number(id)) ? -amount : amount;
     }
 
     result.push({ date: currentDate, amountCents: dailyTotal });

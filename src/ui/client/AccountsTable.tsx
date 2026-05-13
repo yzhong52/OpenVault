@@ -128,6 +128,7 @@ export function AccountsPage({ accounts, holdings }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {groups.map(({ key, label, accts }) => {
           const total = accts.reduce((s, a) => s + (a.amountCents ?? 0), 0);
+          const isCredit = accts.every(a => a.accountCategory === 'Credit');
           const open  = expanded === key;
 
           return (
@@ -170,7 +171,7 @@ export function AccountsPage({ accounts, holdings }: Props) {
                 <div style={{ marginRight: 8 }}>
                   <div style={{
                     fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 500,
-                    color: total >= 0 ? 'var(--text-primary)' : 'var(--text-negative)',
+                    color: isCredit ? 'var(--text-negative)' : total >= 0 ? 'var(--text-primary)' : 'var(--text-negative)',
                   }}>
                     {fmtCents(total)}
                   </div>
@@ -250,7 +251,9 @@ export function AccountsPage({ accounts, holdings }: Props) {
                           </div>
                           <div style={{
                             fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 500,
-                            color: (a.amountCents ?? 0) >= 0 ? 'var(--text-primary)' : 'var(--text-negative)',
+                            color: a.accountCategory === 'Credit'
+                              ? 'var(--text-negative)'
+                              : (a.amountCents ?? 0) >= 0 ? 'var(--text-primary)' : 'var(--text-negative)',
                           }}>
                             {fmtCents(a.amountCents)}
                           </div>

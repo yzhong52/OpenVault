@@ -12,7 +12,7 @@ import type { Account } from './accounts';
 export interface Transaction {
   datetime: string;       // ISO 8601: YYYY-MM-DDTHH:MM:SS when time is known, YYYY-MM-DD otherwise
   description: string;
-  amount: number;         // signed float; negative = debit
+  amount: number;         // signed float; negative = net worth shrinks, positive = net worth grows
   transactionId?: string; // institution-provided ID if visible
   currency?: string;      // ISO 4217; omit for domestic
 }
@@ -48,8 +48,11 @@ const REPORT_TOOL: Tool = {
             amount: {
               type: 'number',
               description:
-                'Signed amount as a plain number. Negative for debits (money out), ' +
-                'positive for credits (money in). No currency symbols or commas.',
+                'Signed amount as a plain number. Sign represents net worth impact: ' +
+                'negative when net worth shrinks (purchases, fees, withdrawals), ' +
+                'positive when net worth grows (income, refunds, deposits). ' +
+                'For credit card accounts: purchases are negative, payments toward the card are positive. ' +
+                'No currency symbols or commas.',
             },
             transactionId: {
               type: 'string',

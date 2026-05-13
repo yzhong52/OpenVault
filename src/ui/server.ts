@@ -237,7 +237,7 @@ app.get('/', (c) => serveIndex(c));
 app.get('/accounts', (c) => serveIndex(c));
 app.get('/transactions', (c) => serveIndex(c));
 
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 console.log(`Starting LedgerAgent UI server on http://localhost:${port}`);
 
 serve({
