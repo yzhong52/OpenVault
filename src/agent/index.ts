@@ -51,8 +51,39 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
+const SNAPSHOT_PREFIX = 'Current page state:\n';
+const SNAPSHOT_PLACEHOLDER = { type: 'text' as const, text: '[snapshot]' };
+
 function pageStateMessage(snapshot: string): { type: 'text'; text: string } {
-  return { type: 'text', text: `Current page state:\n${snapshot}` };
+  return { type: 'text', text: `${SNAPSHOT_PREFIX}${snapshot}` };
+}
+
+function isSnapshotBlock(block: unknown): boolean {
+  return (
+    typeof block === 'object' && block !== null &&
+    (block as Record<string, unknown>).type === 'text' &&
+    typeof (block as Record<string, unknown>).text === 'string' &&
+    ((block as Record<string, unknown>).text as string).startsWith(SNAPSHOT_PREFIX)
+  );
+}
+
+// Replace all but the last snapshot in the conversation with a tiny placeholder.
+// Only the latest page state is useful to Claude; earlier snapshots just burn tokens.
+// The original messages array is not mutated — logs still record the full history.
+function compressHistory(messages: MessageParam[]): MessageParam[] {
+  let lastSnapshotIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === 'user' && Array.isArray(msg.content) && msg.content.some(isSnapshotBlock)) {
+      lastSnapshotIdx = i;
+      break;
+    }
+  }
+  return messages.map((msg, i) => {
+    if (i === lastSnapshotIdx || msg.role !== 'user' || !Array.isArray(msg.content)) return msg;
+    const newContent = (msg.content as unknown[]).map(b => isSnapshotBlock(b) ? SNAPSHOT_PLACEHOLDER : b);
+    return { ...msg, content: newContent } as MessageParam;
+  });
 }
 
 function sessionHostSlug(folderName: string): string | null {
@@ -171,7 +202,7 @@ export async function runAgent<T>(
       system: systemPrompt,
       tools,
       tool_choice: { type: 'any' },
-      messages,
+      messages: compressHistory(messages),
     });
 
     await fs.appendFile(

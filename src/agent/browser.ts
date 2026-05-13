@@ -88,6 +88,19 @@ export const BROWSER_TOOLS: Tool[] = [
     },
   },
   {
+    name: BROWSER_TOOL.TYPE_JS,
+    description: 'Clear a field by CSS selector then type character-by-character. Use for masked/formatted inputs (e.g. date pickers) where fill_js appends instead of replacing, or where keystroke events are required to satisfy field validation.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: { type: 'string', description: 'CSS selector for the input, e.g. "#input-daDtTransFrom"' },
+        value:    { type: 'string', description: 'Value to type' },
+        frame:    { type: 'string', description: 'CSS selector for the containing iframe, if any' },
+      },
+      required: ['selector', 'value'],
+    },
+  },
+  {
     name: BROWSER_TOOL.PRESS_ENTER,
     description: 'Press the Enter key on an element identified by ARIA role and name. Use to submit forms when clicking the submit button fails. Pass frame when the element is inside an iframe.',
     input_schema: {
@@ -178,6 +191,17 @@ export async function executeBrowserTool(
         : page.locator(input.selector as string);
       await target.fill(input.value as string, { timeout: 5000 });
       return `filled "${input.selector}"${input.frame ? ` in ${input.frame}` : ''}`;
+    }
+
+    case BROWSER_TOOL.TYPE_JS: {
+      const typeTarget = input.frame
+        ? page.frameLocator(input.frame as string).locator(input.selector as string)
+        : page.locator(input.selector as string);
+      await typeTarget.click({ timeout: 5000 });
+      await typeTarget.press('Control+A');
+      await typeTarget.press('Delete');
+      await typeTarget.pressSequentially(input.value as string, { timeout: 5000 });
+      return `typed into "${input.selector}"${input.frame ? ` in ${input.frame}` : ''}`;
     }
 
     case BROWSER_TOOL.PRESS_ENTER: {
