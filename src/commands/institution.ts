@@ -8,11 +8,15 @@ export function makeInstitutionCommand(): Command {
   cmd
     .command('add')
     .description('Add a new institution and save credentials to Keychain')
-    .action(async () => {
-      const name     = await prompt('Institution name (e.g. Wealthsimple): ');
-      const url      = await prompt('Login URL: ');
-      const username = await prompt('Username or email: ');
-      const password = await promptPassword('Password: ');
+    .option('--name <name>', 'Institution name')
+    .option('--url <url>', 'Login URL')
+    .option('--username <username>', 'Username or email')
+    .option('--password <password>', 'Password')
+    .action(async (opts) => {
+      const name     = opts.name     ?? await prompt('Institution name (e.g. Wealthsimple): ');
+      const url      = opts.url      ?? await prompt('Login URL: ');
+      const username = opts.username ?? await prompt('Username or email: ');
+      const password = opts.password ?? await promptPassword('Password: ');
 
       const institutions = await readInstitutions();
       const existing = institutions.findIndex(i => i.name === name && i.username === username);
