@@ -2,12 +2,6 @@
 
 ## Critical
 
-### Holdings sync passes `undefined` accountId hint to agent
-`src/commands/accounts.ts` lines 135–136 — the `split('/').slice(1).join('/')` stripping does
-nothing (stored `accountId` never has a `/` prefix), so `dbIdPart === a.accountName` is true
-for most accounts and `accountId` is passed as `undefined` in the existing-accounts hint to
-Claude. Breaks the de-duplication prompt; accounts may get re-created instead of matched.
-
 ---
 
 ## Medium
