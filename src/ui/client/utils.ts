@@ -64,3 +64,17 @@ export function fmtCentsK(cents: number): string {
   const str = val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val.toLocaleString('en-CA', { maximumFractionDigits: 0 });
   return (cents < 0 ? '-$' : '$') + str;
 }
+
+export function fmtCentsCompact(cents: number | null): string {
+  if (cents === null) return '—';
+  const val = Math.abs(cents) / 100;
+  let str: string;
+  if (val >= 1_000_000) {
+    str = `${(val / 1_000_000).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+  } else if (val >= 1_000) {
+    str = `${(val / 1_000).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}k`;
+  } else {
+    str = val.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return (cents < 0 ? '-$' : '$') + str;
+}

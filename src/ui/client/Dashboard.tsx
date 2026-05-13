@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import type { AccountRow, NetWorthPoint, TransactionRow, HoldingRow } from './api';
-import { getInstColor, fmtCents, fmtCentsK } from './utils';
+import { getInstColor, fmtCents, fmtCentsK, fmtCentsCompact } from './utils';
 import { InstBadge } from './InstBadge';
 
 const CHART_LIGHT = {
@@ -28,9 +28,11 @@ function useDarkMode(): boolean {
   return dark;
 }
 
-function StatCard({ label, value, sub, accent }: {
-  label: string; value: string; sub?: string; accent?: 'green' | 'red';
+function StatCard({ label, cents, sub, accent }: {
+  label: string; cents: number | null; sub?: string; accent?: 'green' | 'red';
 }) {
+  const [hovered, setHovered] = useState(false);
+
   const borderColor = accent === 'green' ? 'var(--border-accent-green)'
     : accent === 'red'   ? 'var(--border-accent-red)'
     : 'var(--border-card)';
@@ -38,21 +40,42 @@ function StatCard({ label, value, sub, accent }: {
     : accent === 'red'   ? 'var(--text-negative)'
     : 'var(--text-primary)';
 
+  const value = fmtCentsCompact(cents);
+  const fontSize = value.length > 10 ? 20 : value.length > 8 ? 23 : 26;
+
   return (
-    <div style={{
-      background: 'var(--bg-card)', borderRadius: 12,
-      border: `1px solid ${borderColor}`,
-      padding: '20px 24px', flex: 1, minWidth: 0,
-    }}>
+    <div
+      style={{
+        background: 'var(--bg-card)', borderRadius: 12,
+        border: `1px solid ${borderColor}`,
+        padding: '20px 24px', flex: 1, minWidth: 0, position: 'relative',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <div style={{
         fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500,
         letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8,
       }}>{label}</div>
       <div style={{
-        fontFamily: "'DM Mono', monospace", fontSize: 26, fontWeight: 500,
+        fontFamily: "'DM Mono', monospace", fontSize, fontWeight: 500,
         letterSpacing: '-0.03em', marginBottom: 4, color: valueColor,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{value}</div>
       {sub && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{sub}</div>}
+      {hovered && cents !== null && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--bg-tooltip, oklch(0.2 0.01 260))',
+          color: 'var(--text-tooltip, oklch(0.95 0.005 260))',
+          fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 500,
+          padding: '5px 10px', borderRadius: 6, whiteSpace: 'nowrap',
+          pointerEvents: 'none', zIndex: 10,
+        }}>
+          {fmtCents(cents)}
+        </div>
+      )}
     </div>
   );
 }
@@ -126,9 +149,9 @@ export function Dashboard({ accounts, history, transactions, holdings, onViewAll
       </div>
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 28 }}>
-        <StatCard label="Net Worth"    value={fmtCents(netWorthCents)} sub={`${accounts.length} account${accounts.length !== 1 ? 's' : ''}`}/>
-        <StatCard label="Total Assets" value={fmtCents(assetsCents)} sub={`${assetAccounts.length} account${assetAccounts.length !== 1 ? 's' : ''}`} accent="green"/>
-        <StatCard label="Total Debt"   value={fmtCents(Math.abs(debtCents))} sub={`${debtAccounts.length} account${debtAccounts.length !== 1 ? 's' : ''}`} accent="red"/>
+        <StatCard label="Net Worth"    cents={netWorthCents} sub={`${accounts.length} account${accounts.length !== 1 ? 's' : ''}`}/>
+        <StatCard label="Total Assets" cents={assetsCents} sub={`${assetAccounts.length} account${assetAccounts.length !== 1 ? 's' : ''}`} accent="green"/>
+        <StatCard label="Total Debt"   cents={Math.abs(debtCents)} sub={`${debtAccounts.length} account${debtAccounts.length !== 1 ? 's' : ''}`} accent="red"/>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
