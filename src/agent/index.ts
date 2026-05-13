@@ -51,30 +51,12 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
-const SNAPSHOT_PREFIX = 'Current page state:\n';
 const SNAPSHOT_PLACEHOLDER = { type: 'text' as const, text: '[snapshot]' };
 
 function pageStateMessage(snapshot: string): { type: 'text'; text: string } {
-  return { type: 'text', text: `${SNAPSHOT_PREFIX}${snapshot}` };
+  return { type: 'text', text: `Current page state:\n${snapshot}` };
 }
 
-function isSnapshotBlock(block: unknown): boolean {
-  return (
-    typeof block === 'object' && block !== null &&
-    (block as Record<string, unknown>).type === 'text' &&
-    typeof (block as Record<string, unknown>).text === 'string' &&
-    ((block as Record<string, unknown>).text as string).startsWith(SNAPSHOT_PREFIX)
-  );
-}
-
-// Replace snapshot blocks in a single message with the placeholder.
-// Called once per turn when archiving the outgoing user message into history,
-// so messages[] stays permanently compressed and needs no re-scan each turn.
-function compressMsg(msg: MessageParam): MessageParam {
-  if (!Array.isArray(msg.content)) return msg;
-  const newContent = (msg.content as unknown[]).map(b => isSnapshotBlock(b) ? SNAPSHOT_PLACEHOLDER : b);
-  return { ...msg, content: newContent } as MessageParam;
-}
 
 function sessionHostSlug(folderName: string): string | null {
   const match = folderName.match(/^(.+)_\d{4}-\d{2}-\d{2}_\d{6}$/);
@@ -173,13 +155,17 @@ export async function runAgent<T>(
   }
 
   // messages holds compressed history; pendingUserMsg is the current (uncompressed) user turn.
-  // The API receives [...messages, pendingUserMsg] — all prior snapshots are already compressed,
-  // only the latest snapshot is live. After the response, pendingUserMsg is compressed once
-  // and archived into messages. No re-scan of the full history on each turn.
+  // pendingUserMsgCompressed is built alongside it with the snapshot replaced by a placeholder.
+  // The API receives [...messages, pendingUserMsg] so Claude sees the live snapshot each turn;
+  // pendingUserMsgCompressed is what gets archived into messages after the response.
   const messages: MessageParam[] = [];
   let pendingUserMsg: MessageParam = {
     role: 'user',
     content: [{ type: 'text', text: initialMessage }, pageStateMessage(await takeSnapshot())],
+  };
+  let pendingUserMsgCompressed: MessageParam = {
+    role: 'user',
+    content: [{ type: 'text', text: initialMessage }, SNAPSHOT_PLACEHOLDER],
   };
 
   const logFile = `${sessionDir}/${logName}.md`;
@@ -206,7 +192,7 @@ export async function runAgent<T>(
       `\`\`\`json\n${redactSensitive(JSON.stringify(response, null, 2))}\n\`\`\`\n\n`,
     );
 
-    messages.push(compressMsg(pendingUserMsg));
+    messages.push(pendingUserMsgCompressed);
     messages.push({ role: 'assistant', content: response.content });
 
     const toolUses = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
@@ -271,6 +257,7 @@ export async function runAgent<T>(
       // Take one snapshot after all tools in this turn complete, so Claude sees the
       // cumulative page state rather than intermediate states between tool calls.
       pendingUserMsg = { role: 'user', content: [...toolResults, pageStateMessage(await takeSnapshot())] };
+      pendingUserMsgCompressed = { role: 'user', content: [...toolResults, SNAPSHOT_PLACEHOLDER] };
     } else {
       return result.value;
     }
