@@ -1,6 +1,6 @@
 
 import { createHash } from 'crypto';
-import { eq, desc, and, gte } from 'drizzle-orm';
+import { eq, desc, and, gte, inArray } from 'drizzle-orm';
 import type { Account } from '../tasks/accounts';
 import { ACCOUNT_TYPES, ACCOUNT_CATEGORIES } from '../tasks/accounts';
 import type { Transaction } from '../tasks/transactions';
@@ -451,6 +451,48 @@ export function mergeAccounts(db: Db, sourceId: number, targetId: number): void 
         .where(eq(accountsTable.id, targetId))
         .run();
     }
+
+    // Re-parent transactions: drop source rows whose transactionId already exists on target,
+    // then bulk-update the rest.
+    const targetTxIds = tx
+      .select({ transactionId: transactionsTable.transactionId })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.accountId, targetId))
+      .all()
+      .map(r => r.transactionId);
+    if (targetTxIds.length > 0) {
+      tx.delete(transactionsTable)
+        .where(and(
+          eq(transactionsTable.accountId, sourceId),
+          inArray(transactionsTable.transactionId, targetTxIds),
+        ))
+        .run();
+    }
+    tx.update(transactionsTable)
+      .set({ accountId: targetId })
+      .where(eq(transactionsTable.accountId, sourceId))
+      .run();
+
+    // Re-parent holdings: composite unique key (accountId, date, symbol) so drop conflicts
+    // row-by-row, then bulk-update the rest.
+    const targetHoldings = tx
+      .select({ date: holdingsTable.date, symbol: holdingsTable.symbol })
+      .from(holdingsTable)
+      .where(eq(holdingsTable.accountId, targetId))
+      .all();
+    for (const { date, symbol } of targetHoldings) {
+      tx.delete(holdingsTable)
+        .where(and(
+          eq(holdingsTable.accountId, sourceId),
+          eq(holdingsTable.date, date),
+          eq(holdingsTable.symbol, symbol),
+        ))
+        .run();
+    }
+    tx.update(holdingsTable)
+      .set({ accountId: targetId })
+      .where(eq(holdingsTable.accountId, sourceId))
+      .run();
 
     tx.delete(balances).where(eq(balances.accountId, sourceId)).run();
     tx.delete(accountsTable).where(eq(accountsTable.id, sourceId)).run();
