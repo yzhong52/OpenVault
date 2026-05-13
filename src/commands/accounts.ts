@@ -132,8 +132,7 @@ export function makeAccountsCommand(): Command {
           const existingAccountsMsg = listAccounts(db)
             .filter(a => a.institutionName === inst.name)
             .map(a => {
-              const dbIdPart = a.accountId.split('/').slice(1).join('/');
-              const accountId = dbIdPart !== a.accountName ? dbIdPart : undefined;
+              const accountId = a.accountId !== a.accountName ? a.accountId : undefined;
               return {
                 name: a.accountName,
                 accountId,
