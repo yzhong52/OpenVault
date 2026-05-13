@@ -204,7 +204,7 @@ export function makeAccountsCommand(): Command {
 
   cmd
     .command('merge')
-    .description('Merge one account into another, combining their balance history')
+    .description('Merge one account into another, combining their history. Balances, transactions, and holdings are re-parented to the target; duplicates (same date for balances/holdings, same transactionId for transactions) are dropped in favour of the target\'s existing data. The source account is then permanently deleted.')
     .action(async () => {
       const { db, close } = openDb();
       try {
@@ -233,6 +233,8 @@ export function makeAccountsCommand(): Command {
         const tgt = tgtRows[tgtIdx];
         console.log(`  Merge "${src.accountName}" (${src.institutionName})`);
         console.log(`    into "${tgt.accountName}" (${tgt.institutionName})?`);
+        console.log(`  Balances, transactions, and holdings will be re-parented to the target.`);
+        console.log(`  Duplicates (same date or transaction ID) keep the target's existing data.`);
         console.log(`  The source account will be permanently deleted.`);
         console.log();
         const confirm = await prompt('  Confirm (y/N): ');

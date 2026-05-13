@@ -2,12 +2,6 @@
 
 ## Critical
 
-### `mergeAccounts` crashes with FK violation on holdings
-`src/db/storage.ts` — `mergeAccounts` deletes the source `accounts` row but never touches
-`holdings`, which FK-reference it. With `foreign_keys = ON`, the delete throws a constraint
-violation if any holdings rows exist for the source account. Fix: re-parent holdings rows to
-`targetId` (same upsert-on-conflict pattern as balances) before deleting the source account.
-
 ### Holdings sync passes `undefined` accountId hint to agent
 `src/commands/accounts.ts` lines 135–136 — the `split('/').slice(1).join('/')` stripping does
 nothing (stored `accountId` never has a `/` prefix), so `dbIdPart === a.accountName` is true
