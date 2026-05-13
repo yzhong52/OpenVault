@@ -51,13 +51,13 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
+// Replaces the snapshot block in archived user messages to save input tokens.
+// Only the latest snapshot is useful to Claude; prior ones are dead weight.
 const SNAPSHOT_PLACEHOLDER = { type: 'text' as const, text: '[snapshot]' };
 
 function pageStateMessage(snap: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Current page state:\n${snap}` };
 }
-
-
 
 function sessionHostSlug(folderName: string): string | null {
   const match = folderName.match(/^(.+)_\d{4}-\d{2}-\d{2}_\d{6}$/);
@@ -168,6 +168,8 @@ export async function runAgent<T>(
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const { snap, snapFile } = await takeSnapshot();
+    // API receives the full snapshot content; the log records the file path instead
+    // so conversation logs stay readable without the full ARIA tree on every turn.
     const userContent = [...pendingPrefix, pageStateMessage(snap)];
 
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
@@ -190,6 +192,8 @@ export async function runAgent<T>(
       `\`\`\`json\n${redactSensitive(JSON.stringify(response, null, 2))}\n\`\`\`\n\n`,
     );
 
+    // Archive with placeholder — the snapshot is only needed live; compressing it
+    // here keeps the history lean for every subsequent turn's API call.
     messages.push({ role: 'user', content: [...pendingPrefix, SNAPSHOT_PLACEHOLDER] });
     messages.push({ role: 'assistant', content: response.content });
 
@@ -252,8 +256,8 @@ export async function runAgent<T>(
     }
 
     if (!result) {
-      // Take one snapshot after all tools in this turn complete, so Claude sees the
-      // cumulative page state rather than intermediate states between tool calls.
+      // Store tool results as the prefix for the next turn; the snapshot is taken
+      // at the top of that turn so it captures the final post-tool page state.
       pendingPrefix = toolResults;
     } else {
       return result.value;
