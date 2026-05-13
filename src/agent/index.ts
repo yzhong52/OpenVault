@@ -139,6 +139,8 @@ export async function runAgent<T>(
 ): Promise<T> {
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
+  const snapshotsDir = `${sessionDir}/snapshots`;
+  await fs.mkdir(snapshotsDir, { recursive: true });
 
   async function takeSnapshot(): Promise<string> {
     // Wait for the page to settle before snapshotting. Without this, a snapshot taken
@@ -159,7 +161,7 @@ export async function runAgent<T>(
     }
     if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
     snap = redactSensitive(snap);
-    const snapFile = `${sessionDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+    const snapFile = `${snapshotsDir}/${String(++snapCount).padStart(3, '0')}.txt`;
     await fs.writeFile(snapFile, snap);
     if (VERBOSE) {
       const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
