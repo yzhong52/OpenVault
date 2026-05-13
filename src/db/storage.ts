@@ -183,21 +183,15 @@ export interface NetWorthPoint {
 }
 
 export function getNetWorthHistory(db: Db): NetWorthPoint[] {
-  const creditAccountIds = new Set(
-    db.select({ id: accountsTable.id })
-      .from(accountsTable)
-      .where(eq(accountsTable.category, 'Credit'))
-      .all()
-      .map(a => a.id)
-  );
-
   const allBalances = db
     .select({
       accountId: balances.accountId,
       date: balances.date,
       amountCents: balances.amountCents,
+      category: accountsTable.category,
     })
     .from(balances)
+    .innerJoin(accountsTable, eq(accountsTable.id, balances.accountId))
     .orderBy(balances.date)
     .all();
 
@@ -210,7 +204,7 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
   const explicitDates = Array.from(balancesByDate.keys()).sort();
   if (explicitDates.length === 0) return [];
 
-  const currentBalances: Record<string, number> = {};
+  const currentBalances: Record<string, { amount: number; isCredit: boolean }> = {};
   const result: NetWorthPoint[] = [];
 
   let currentDate = explicitDates[0];
@@ -220,14 +214,14 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
     if (balancesByDate.has(currentDate)) {
       for (const b of balancesByDate.get(currentDate)!) {
         if (b.amountCents !== null) {
-          currentBalances[b.accountId] = b.amountCents;
+          currentBalances[b.accountId] = { amount: b.amountCents, isCredit: b.category === 'Credit' };
         }
       }
     }
 
     let dailyTotal = 0;
-    for (const [id, amount] of Object.entries(currentBalances)) {
-      dailyTotal += creditAccountIds.has(Number(id)) ? -amount : amount;
+    for (const { amount, isCredit } of Object.values(currentBalances)) {
+      dailyTotal += isCredit ? -amount : amount;
     }
 
     result.push({ date: currentDate, amountCents: dailyTotal });
