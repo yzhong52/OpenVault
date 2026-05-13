@@ -41,7 +41,8 @@ function StatCard({ label, cents, sub, accent }: {
     : 'var(--text-primary)';
 
   const value = fmtCentsCompact(cents);
-  const fontSize = value.length > 10 ? 20 : value.length > 8 ? 23 : 26;
+  const displayLen = value.startsWith('-') ? value.length - 1 : value.length;
+  const fontSize = displayLen > 10 ? 20 : displayLen > 8 ? 23 : 26;
 
   return (
     <div
