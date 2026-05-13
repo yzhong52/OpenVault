@@ -148,11 +148,11 @@ export function saveSync(
       const rawAccountId = account.accountId ?? account.name;
       const amountCents = toCents(account.balance);
 
-      if (normalizeCategory(account.category) === 'Credit' && amountCents !== null && amountCents < 0) {
+      if (normalizeCategory(account.category) === 'Credit' && amountCents !== null && amountCents > 0) {
         console.warn(
-          `[saveSync] Credit account "${account.name}" has a negative balance ` +
-          `(${amountCents / 100}). Expected positive (amount owed). ` +
-          `This may indicate the agent reported the wrong sign.`
+          `[saveSync] Credit account "${account.name}" has a positive balance ` +
+          `(${amountCents / 100}). Expected negative (amount owed). ` +
+          `This may indicate an overpayment credit or the agent reported the wrong sign.`
         );
       }
 
@@ -196,10 +196,8 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
       accountId: balances.accountId,
       date: balances.date,
       amountCents: balances.amountCents,
-      category: accountsTable.category,
     })
     .from(balances)
-    .innerJoin(accountsTable, eq(accountsTable.id, balances.accountId))
     .orderBy(balances.date)
     .all();
 
@@ -212,7 +210,7 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
   const explicitDates = Array.from(balancesByDate.keys()).sort();
   if (explicitDates.length === 0) return [];
 
-  const currentBalances: Record<string, { amount: number; isCredit: boolean }> = {};
+  const currentBalances: Record<string, number> = {};
   const result: NetWorthPoint[] = [];
 
   let currentDate = explicitDates[0];
@@ -222,14 +220,14 @@ export function getNetWorthHistory(db: Db): NetWorthPoint[] {
     if (balancesByDate.has(currentDate)) {
       for (const b of balancesByDate.get(currentDate)!) {
         if (b.amountCents !== null) {
-          currentBalances[b.accountId] = { amount: b.amountCents, isCredit: b.category === 'Credit' };
+          currentBalances[b.accountId] = b.amountCents;
         }
       }
     }
 
     let dailyTotal = 0;
-    for (const { amount, isCredit } of Object.values(currentBalances)) {
-      dailyTotal += isCredit ? -amount : amount;
+    for (const amount of Object.values(currentBalances)) {
+      dailyTotal += amount;
     }
 
     result.push({ date: currentDate, amountCents: dailyTotal });
