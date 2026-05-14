@@ -235,6 +235,7 @@ async function serveIndex(c: Context) {
 
 app.get('/', (c) => serveIndex(c));
 app.get('/accounts', (c) => serveIndex(c));
+app.get('/holdings', (c) => serveIndex(c));
 app.get('/transactions', (c) => serveIndex(c));
 
 const port = Number(process.env.PORT) || 3000;
