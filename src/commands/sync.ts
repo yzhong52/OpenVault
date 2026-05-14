@@ -7,7 +7,7 @@ import { createSession } from '../agent';
 import { keychainLoad } from '../keychain';
 import { openDb } from '../db';
 import { saveSync, saveHoldings, saveTransactions, listAccounts } from '../db/storage';
-import { prompt, readInstitutions, launchBrowser } from './utils';
+import { prompt, readInstitutions, launchBrowser, printHoldingsTable } from './utils';
 import { printAccountSyncResult } from './accounts';
 import { printTransactionSyncResult } from './transactions';
 
@@ -16,9 +16,27 @@ export function makeSyncCommand(): Command {
     .description('Sync accounts and transactions for all institutions (login once per institution)')
     .option('-i, --institution <name>', 'Only sync this institution (case-insensitive)')
     .option('--days <n>', 'Number of days of transaction history to fetch (default: 30)', '30')
+    .option('--accountId <id>', 'Only sync this account ID for transactions (requires --institution)')
+    .option('--skip-accounts', 'Skip account discovery; only fetch transactions')
+    .option('--skip-holdings', 'Skip holdings fetch after account discovery')
+    .option('--skip-transactions', 'Skip transaction fetch; only sync accounts')
     .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
     .option('--demo', 'Hide sensitive data by randomizing balances and account numbers')
-    .action(async (opts: { institution?: string; days: string; verbose: boolean; demo: boolean }) => {
+    .action(async (opts: {
+      institution?: string;
+      days: string;
+      accountId?: string;
+      skipAccounts: boolean;
+      skipHoldings: boolean;
+      skipTransactions: boolean;
+      verbose: boolean;
+      demo: boolean;
+    }) => {
+      if (opts.accountId && !opts.institution) {
+        console.log('--accountId requires --institution.');
+        return;
+      }
+
       if (opts.verbose) process.env.VERBOSE = '1';
       const lookbackDays = Math.max(1, parseInt(opts.days, 10) || 30);
 
@@ -47,57 +65,92 @@ export function makeSyncCommand(): Command {
             continue;
           }
 
-          console.log(`\n🤖 Syncing ${inst.name}...`);
+          console.log(`\n🤖 Syncing ${inst.name}... ⏳`);
           const sessionDir = await createSession(inst.url);
           await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
 
-          // --- Accounts ---
-          console.log(`\n  📋 Accounts`);
-          const existingAccounts = listAccounts(db)
-            .filter(a => a.institutionName === inst.name)
-            .map(a => {
-              const dbIdPart = a.accountId.split('/').slice(1).join('/');
-              const accountId = dbIdPart !== a.accountName ? dbIdPart : undefined;
-              return {
-                name: a.accountName,
-                accountId,
-                type: (a.accountType ?? undefined) as AccountType | undefined,
-                currency: a.accountCurrency ?? undefined,
-              };
-            });
+          if (!opts.skipAccounts) {
+            // --- Accounts ---
+            console.log(`\n  📋 Accounts`);
+            const existingAccounts = listAccounts(db)
+              .filter(a => a.institutionName === inst.name)
+              .map(a => {
+                // accountId falls back to name when no real ID was found; omit the hint if so
+                const accountId = a.accountId !== a.accountName ? a.accountId : undefined;
+                return {
+                  name: a.accountName,
+                  accountId,
+                  type: (a.accountType ?? undefined) as AccountType | undefined,
+                  currency: a.accountCurrency ?? undefined,
+                };
+              });
 
-          const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccounts);
-          const diff = saveSync(db, inst.name, inst.url, accounts);
-          const allSyncedAccounts = listAccounts(db).filter(a => a.institutionName === inst.name);
-          printAccountSyncResult(inst.name, diff, allSyncedAccounts, { demo: opts.demo });
+            const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccounts);
+            const diff = saveSync(db, inst.name, inst.url, accounts);
+            const allSyncedAccounts = listAccounts(db).filter(a => a.institutionName === inst.name);
+            printAccountSyncResult(inst.name, diff, allSyncedAccounts, { demo: opts.demo });
 
-          const investmentAccounts = accounts.filter(
-            a => a.category === 'Brokerage' || a.category === 'Managed Investment',
-          );
-          for (const account of investmentAccounts) {
-            const row = allSyncedAccounts.find(r => r.accountId === (account.accountId ?? account.name));
-            if (!row) continue;
-            const holdings = await exploreHoldings(page, inst.name, account, sessionDir);
-            saveHoldings(db, row.id, holdings);
-            console.log(`  Holdings for ${account.name}: ${holdings.length} position(s)`);
+            if (!opts.skipHoldings) {
+              const investmentAccounts = accounts.filter(
+                a => a.category === 'Brokerage' || a.category === 'Managed Investment',
+              );
+              for (const account of investmentAccounts) {
+                const row = allSyncedAccounts.find(
+                  r => r.accountId === (account.accountId ?? account.name),
+                );
+                if (!row) continue;
+                const holdings = await exploreHoldings(page, inst.name, account, sessionDir);
+                saveHoldings(db, row.id, holdings);
+                console.log(`  Holdings for ${account.name}:`);
+                printHoldingsTable(holdings);
+              }
+            }
           }
 
-          // --- Transactions ---
-          console.log(`\n  💳 Transactions (last ${lookbackDays} days)`);
-          for (const account of allSyncedAccounts) {
-            try {
-              const txs = await fetchTransactions(
-                page, inst.name,
-                { name: account.accountName, accountId: account.accountId },
-                lookbackDays, sessionDir,
+          if (!opts.skipTransactions) {
+            // --- Transactions ---
+            console.log(`\n  💳 Transactions (last ${lookbackDays} days)`);
+
+            let accountsToSync: { name: string; accountId: string }[];
+            if (opts.accountId) {
+              const match = listAccounts(db).find(
+                a => a.institutionName === inst.name && a.accountId.endsWith(opts.accountId!),
               );
-              const newTxs = saveTransactions(db, inst.name, account.accountId, txs);
-              printTransactionSyncResult(account.accountName, newTxs, txs.length);
-            } catch (err) {
-              console.error(
-                `  ❌ Transactions failed for ${account.accountName}: ` +
-                `${err instanceof Error ? err.message : String(err)}`,
-              );
+              if (!match) {
+                console.log(
+                  `Account "${opts.accountId}" not found under ${inst.name}. ` +
+                  `Run: npm run cli -- sync --institution ${inst.name}`,
+                );
+                continue;
+              }
+              accountsToSync = [{ name: match.accountName, accountId: match.accountId }];
+            } else {
+              const dbAccounts = listAccounts(db).filter(a => a.institutionName === inst.name);
+              if (dbAccounts.length === 0) {
+                console.log(
+                  `No accounts found for ${inst.name}. ` +
+                  `Run: npm run cli -- sync --institution ${inst.name}`,
+                );
+                continue;
+              }
+              accountsToSync = dbAccounts.map(a => ({ name: a.accountName, accountId: a.accountId }));
+            }
+
+            for (const account of accountsToSync) {
+              try {
+                const txs = await fetchTransactions(
+                  page, inst.name,
+                  { name: account.name, accountId: account.accountId },
+                  lookbackDays, sessionDir,
+                );
+                const newTxs = saveTransactions(db, inst.name, account.accountId, txs);
+                printTransactionSyncResult(account.name, newTxs, txs.length);
+              } catch (err) {
+                console.error(
+                  `  ❌ Transactions failed for ${account.name}: ` +
+                  `${err instanceof Error ? err.message : String(err)}`,
+                );
+              }
             }
           }
         }
