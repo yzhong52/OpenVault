@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import * as readline from 'readline';
-import { runAgent, toolDone, MAX_TURNS } from '../agent';
+import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
 import { LOGIN_TOOL } from '../agent/tools';
 import { fetchMfaCode } from '../gmail';
@@ -139,7 +139,8 @@ export async function login(
 
   await page.goto(url, { waitUntil: 'load' });
 
-  console.log('🤖 Starting login...');
+  console.log(SEPARATOR);
+  console.log('🤖 Starting login... ⏳');
 
   let loginSucceeded = false;
   try {
@@ -224,7 +225,7 @@ export async function login(
     );
   } finally {
     if (events.length > 0) {
-      console.log('🤖 Summarizing session...');
+      console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
         events, 'logging into a financial institution website',
       );

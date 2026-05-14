@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone, MAX_TURNS } from '../agent';
+import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { ACCOUNT_TOOL } from '../agent/tools';
 import {
@@ -96,7 +96,7 @@ const TRACKED_TOOLS = new Set<string>([
 
 function buildSystemPrompt(
   notes: string,
-  existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[]
+  existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[],
 ): string {
   let existingAccountsMsg = '';
   if (existingAccounts && existingAccounts.length > 0) {
@@ -129,7 +129,8 @@ export async function exploreAccounts(
   sessionDir: string,
   existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[] = [],
 ): Promise<Account[]> {
-  console.log('🤖 Exploring accounts...');
+  console.log(SEPARATOR);
+  console.log('🤖 Exploring accounts... ⏳');
 
   const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
   const events: ToolEvent[] = [];
@@ -175,7 +176,7 @@ export async function exploreAccounts(
     );
   } finally {
     if (events.length > 0) {
-      console.log('🤖 Summarizing session...');
+      console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
         events, 'exploring a financial institution dashboard to discover all accounts',
       );

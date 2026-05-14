@@ -11,6 +11,7 @@ import { keychainLoadApiKey } from '../keychain';
 
 export const MODEL = 'claude-sonnet-4-6';
 export const MAX_TURNS = 20;
+export const SEPARATOR = '─'.repeat(60);
 
 function briefInput(input: Record<string, unknown>): string {
   if (input.role && input.name) return `${input.role} "${input.name}"`;
@@ -237,6 +238,11 @@ export async function runAgent<T>(
             toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
           }
         } catch (err) {
+          // TODO: break retry loops — the model sometimes retries the same failing call
+          // repeatedly even when the error is unrecoverable. Appending a "do not retry"
+          // hint to the tool result was tried (tracking seen calls by toolName+input) but
+          // didn't reliably stop the loop in practice because the model still found reasons
+          // to retry given the full conversation history. Needs a better approach.
           output = redactSensitive(`error: ${err instanceof Error ? err.message : String(err)}`);
           if (VERBOSE) {
             const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;

@@ -108,6 +108,7 @@ export function formatMemoryForPrompt(notes: string, task: string): string {
   return `\nNotes from previous ${task} sessions for this institution:\n${notes}`;
 }
 
+
 export async function generateSessionNotes(
   events: ToolEvent[], taskContext: string,
 ): Promise<string> {
