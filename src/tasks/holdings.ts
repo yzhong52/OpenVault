@@ -2,7 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
-import { HOLDING_TOOL } from '../agent/tools';
+import { GIVE_UP_TOOL, HOLDING_TOOL } from '../agent/tools';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
   generateSessionNotes, type ToolEvent,
@@ -19,9 +19,8 @@ export interface Holding {
   currency?: string;     // ISO 4217; omit for CAD
 }
 
-const MEMORY_TASK = 'holdings';
+const TASK_NAME = 'holdings';
 const REPORT_HOLDINGS = HOLDING_TOOL.REPORT_HOLDINGS;
-const REPORT_HOLDINGS_NOT_AVAILABLE = HOLDING_TOOL.REPORT_HOLDINGS_NOT_AVAILABLE;
 
 const REPORT_TOOL: Tool = {
   name: REPORT_HOLDINGS,
@@ -77,11 +76,18 @@ const REPORT_TOOL: Tool = {
 // accounts do not appear in the WebBroker account selector at all — attempting to find them
 // there will always fail. This tool gives the agent a clean exit in those cases.
 const NOT_AVAILABLE_TOOL: Tool = {
-  name: REPORT_HOLDINGS_NOT_AVAILABLE,
+  name: GIVE_UP_TOOL,
   description:
-    'Call this when the account cannot be found in the account selector or has no holdings ' +
-    'view on this platform. Do NOT use this if you simply haven\'t looked yet.',
-  input_schema: { type: 'object', properties: {} },
+    'Call this when the account cannot be found in the account selector, has no holdings ' +
+    'view on this platform, or you are stuck and cannot make progress. Do NOT use this if ' +
+    'you simply haven\'t looked yet.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      reason: { type: 'string', description: 'Why you are giving up.' },
+    },
+    required: ['reason'],
+  },
 };
 
 const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL, NOT_AVAILABLE_TOOL];
@@ -103,25 +109,23 @@ function buildSystemPrompt(
   return `\
 You are a browser automation agent. The user is logged into their financial institution.
 
-Your job is to find all investment holdings for the account ${accountLabel}.
+Your job is to find all investment holdings for the account ${accountLabel} only if the \
+account is available.
 
 Steps:
 1. Navigate to the holdings or portfolio view for this account. It may require clicking the \
 account name, a "Holdings", "Portfolio", or "Positions" tab.
-2. Collect every position visible — symbol (or ticker), name, quantity, price per unit, and \
-total market value. Include cost basis if shown.
-3. If holdings span multiple pages or require expanding rows, navigate through all of them.
-4. Once you have the complete list, call ${REPORT_HOLDINGS}.
-
-Report an empty holdings array if this account has no individual positions \
-(e.g. it is a cash-only account).
-
-If there is an account selector dropdown, open it once to reveal the available options. If none \
-of the options match the target account name or ID (${account.accountId ?? 'unknown'}), call \
-${REPORT_HOLDINGS_NOT_AVAILABLE} immediately.
+2. If the account is not avaiable, or there is no way to view holdings for this account on \
+the web, call ${GIVE_UP_TOOL} with the reason. 
+3. Once the account is identified, collect every position visible — symbol (or ticker), name, \
+quantity, price per unit, and total market value. Include cost basis if shown.
+4. If holdings span multiple pages or require expanding rows, navigate through all of them.
+5. Once you have the complete list, call ${REPORT_HOLDINGS}. 
+6. If this account has no individual positions (e.g. it is a cash-only account), report an empty 
+holdings array.
 
 Do not navigate to other accounts. Do not log out.
-${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
+${formatMemoryForPrompt(notes, TASK_NAME)}`;
 }
 
 export async function exploreHoldings(
@@ -133,7 +137,7 @@ export async function exploreHoldings(
   console.log(SEPARATOR);
   console.log(`🤖 Fetching holdings for ${account.name}... ⏳`);
 
-  const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
+  const notes = await loadMemoryNotes(institutionName, TASK_NAME);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -153,9 +157,10 @@ export async function exploreHoldings(
           return toolDone<Holding[]>(list, 'holdings recorded');
         }
 
-        if (name === REPORT_HOLDINGS_NOT_AVAILABLE) {
-          track('report_holdings_not_available', 'success');
-          return toolDone<Holding[]>([], 'account not available on this platform');
+        if (name === GIVE_UP_TOOL) {
+          const reason = (input as { reason?: string }).reason ?? 'account not available on this platform';
+          track('give_up', 'success');
+          return toolDone<Holding[]>([], reason);
         }
 
         if (TRACKED_TOOLS.has(name)) {
@@ -188,7 +193,7 @@ export async function exploreHoldings(
         events,
         `fetching investment holdings for account "${account.name}" at ${institutionName}`,
       );
-      await saveMemoryNotes(institutionName, MEMORY_TASK, sessionNotes);
+      await saveMemoryNotes(institutionName, TASK_NAME, sessionNotes);
     }
   }
 }

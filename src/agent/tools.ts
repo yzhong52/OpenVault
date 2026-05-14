@@ -19,6 +19,9 @@ export const BROWSER_TOOL = {
 /** Shared terminal tool — all tasks call this to signal completion. */
 export const SUCCESS_TOOL = 'success';
 
+/** Shared give-up tool — call when stuck or the target resource is unavailable. */
+export const GIVE_UP_TOOL = 'give_up';
+
 export const LOGIN_TOOL = {
   // FILL / TYPE: for non-credential fields (e.g. OTP codes, search boxes).
   // FILL_USERNAME / FILL_PASSWORD / TYPE_USERNAME / TYPE_PASSWORD: same mechanics, but the
@@ -45,8 +48,7 @@ export const TRANSACTION_TOOL = {
 } as const;
 
 export const HOLDING_TOOL = {
-  REPORT_HOLDINGS:           'report_holdings',
-  REPORT_HOLDINGS_NOT_AVAILABLE: 'report_holdings_not_available',
+  REPORT_HOLDINGS: 'report_holdings',
 } as const;
 
 /** Tools that modify page or form state. The agent loop takes an implicit snapshot
