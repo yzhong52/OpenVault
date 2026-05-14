@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone, MAX_TURNS } from '../agent';
+import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { HOLDING_TOOL } from '../agent/tools';
 import {
@@ -118,9 +118,9 @@ total market value. Include cost basis if shown.
 Report an empty holdings array if this account has no individual positions \
 (e.g. it is a cash-only account).
 
-If you need to select this account from a dropdown or account selector, match by account ID \
-(${account.accountId ?? 'unknown'}) or name. If no matching option exists after inspecting \
-the dropdown once, call ${REPORT_HOLDINGS_NOT_AVAILABLE}. Do not cycle through unrelated accounts.
+If there is an account selector dropdown, open it once to reveal the available options. If none \
+of the options match the target account name or ID (${account.accountId ?? 'unknown'}), call \
+${REPORT_HOLDINGS_NOT_AVAILABLE} immediately.
 
 Do not navigate to other accounts. Do not log out.
 ${formatKnowledgeForPrompt(knowledge)}${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
@@ -132,6 +132,7 @@ export async function exploreHoldings(
   account: Pick<Account, 'name' | 'accountId'>,
   sessionDir: string,
 ): Promise<Holding[]> {
+  console.log(SEPARATOR);
   console.log(`🤖 Fetching holdings for ${account.name}... ⏳`);
 
   const [notes, knowledge] = await Promise.all([
