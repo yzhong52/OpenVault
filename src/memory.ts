@@ -109,7 +109,7 @@ export function formatMemoryForPrompt(notes: string, task: string): string {
 }
 
 function knowledgePath(institutionName: string, task: string): string {
-  return path.join(DATA_DIR, 'institutional_knowledge', memorySlug(institutionName), `${task}.md`);
+  return path.join(process.cwd(), 'institutional_knowledge', memorySlug(institutionName), `${task}.md`);
 }
 
 export async function loadInstitutionalKnowledge(institutionName: string, task: string): Promise<string> {
