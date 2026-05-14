@@ -7,6 +7,7 @@ import { LOGIN_TOOL } from '../agent/tools';
 import { fetchMfaCode } from '../gmail';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
+  loadInstitutionalKnowledge, formatKnowledgeForPrompt,
   generateSessionNotes, type ToolEvent,
 } from '../memory';
 
@@ -15,7 +16,7 @@ export interface Credentials {
   password: string;
 }
 
-function buildSystemPrompt(notes: string): string {
+function buildSystemPrompt(notes: string, knowledge: string): string {
   return `\
 You are a browser automation agent. Your job is to log into a financial institution website.
 
@@ -31,7 +32,7 @@ Login flow:
      on future logins.
   5. Once you can see the account dashboard or portfolio summary, call success.
 
-After each action, the updated page state is provided automatically.${formatMemoryForPrompt(notes, 'login')}`;
+After each action, the updated page state is provided automatically.${formatKnowledgeForPrompt(knowledge)}${formatMemoryForPrompt(notes, 'login')}`;
 }
 
 
@@ -131,7 +132,10 @@ export async function login(
   page: Page, url: string, creds: Credentials, institutionName: string, sessionDir: string,
 ): Promise<void> {
   const loginStartedAt = new Date();
-  const notes = await loadMemoryNotes(institutionName, 'login');
+  const [notes, knowledge] = await Promise.all([
+    loadMemoryNotes(institutionName, 'login'),
+    loadInstitutionalKnowledge(institutionName, 'login'),
+  ]);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -139,14 +143,14 @@ export async function login(
 
   await page.goto(url, { waitUntil: 'load' });
 
-  console.log('🤖 Starting login...');
+  console.log('🤖 Starting login... ⏳');
 
   let loginSucceeded = false;
   try {
     await runAgent<void>(
       page,
       TOOLS,
-      buildSystemPrompt(notes),
+      buildSystemPrompt(notes, knowledge),
       'The browser has navigated to the login page.',
       async (name, input, pg) => {
         // Resolves the locator for a credential field. Some sites (e.g. Questrade) use
@@ -224,7 +228,7 @@ export async function login(
     );
   } finally {
     if (events.length > 0) {
-      console.log('🤖 Summarizing session...');
+      console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
         events, 'logging into a financial institution website',
       );

@@ -125,7 +125,7 @@ export function makeAccountsCommand(): Command {
             continue;
           }
 
-          console.log(`\n🤖 Syncing ${inst.name}...`);
+          console.log(`\n🤖 Syncing ${inst.name}... ⏳`);
           const sessionDir = await createSession(inst.url);
           await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
 
@@ -155,7 +155,7 @@ export function makeAccountsCommand(): Command {
             if (!row) continue;
             const holdings = await exploreHoldings(page, inst.name, account, sessionDir);
             saveHoldings(db, row.id, holdings);
-            console.log(`  Holdings for ${account.name}: ${holdings.length} position(s)`);
+            console.log(`   Holdings for ${account.name}: ${holdings.length} position(s)`);
           }
 
           console.log();

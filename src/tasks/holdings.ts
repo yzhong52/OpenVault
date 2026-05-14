@@ -5,6 +5,7 @@ import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browse
 import { HOLDING_TOOL } from '../agent/tools';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
+  loadInstitutionalKnowledge, formatKnowledgeForPrompt,
   generateSessionNotes, type ToolEvent,
 } from '../memory';
 import type { Account } from './accounts';
@@ -21,6 +22,7 @@ export interface Holding {
 
 const MEMORY_TASK = 'holdings';
 const REPORT_HOLDINGS = HOLDING_TOOL.REPORT_HOLDINGS;
+const REPORT_HOLDINGS_NOT_AVAILABLE = HOLDING_TOOL.REPORT_HOLDINGS_NOT_AVAILABLE;
 
 const REPORT_TOOL: Tool = {
   name: REPORT_HOLDINGS,
@@ -72,7 +74,18 @@ const REPORT_TOOL: Tool = {
   },
 };
 
-const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL];
+// Some accounts exist only on mobile and have no web holdings view. For example, TD Easy Trade
+// accounts do not appear in the WebBroker account selector at all — attempting to find them
+// there will always fail. This tool gives the agent a clean exit in those cases.
+const NOT_AVAILABLE_TOOL: Tool = {
+  name: REPORT_HOLDINGS_NOT_AVAILABLE,
+  description:
+    'Call this when the account cannot be found in the account selector or has no holdings ' +
+    'view on this platform. Do NOT use this if you simply haven\'t looked yet.',
+  input_schema: { type: 'object', properties: {} },
+};
+
+const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL, NOT_AVAILABLE_TOOL];
 
 const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
@@ -80,7 +93,11 @@ const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.FRAME_SNAPSHOT, BROWSER_TOOL.GET_INPUTS,
 ]);
 
-function buildSystemPrompt(notes: string, account: Pick<Account, 'name' | 'accountId'>): string {
+function buildSystemPrompt(
+  notes: string,
+  knowledge: string,
+  account: Pick<Account, 'name' | 'accountId'>,
+): string {
   const accountLabel = account.accountId
     ? `"${account.name}" (ID: ${account.accountId})`
     : `"${account.name}"`;
@@ -101,8 +118,12 @@ total market value. Include cost basis if shown.
 Report an empty holdings array if this account has no individual positions \
 (e.g. it is a cash-only account).
 
+If you need to select this account from a dropdown or account selector, match by account ID \
+(${account.accountId ?? 'unknown'}) or name. If no matching option exists after inspecting \
+the dropdown once, call ${REPORT_HOLDINGS_NOT_AVAILABLE}. Do not cycle through unrelated accounts.
+
 Do not navigate to other accounts. Do not log out.
-${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
+${formatKnowledgeForPrompt(knowledge)}${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
 }
 
 export async function exploreHoldings(
@@ -111,9 +132,12 @@ export async function exploreHoldings(
   account: Pick<Account, 'name' | 'accountId'>,
   sessionDir: string,
 ): Promise<Holding[]> {
-  console.log(`🤖 Fetching holdings for ${account.name}...`);
+  console.log(`🤖 Fetching holdings for ${account.name}... ⏳`);
 
-  const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
+  const [notes, knowledge] = await Promise.all([
+    loadMemoryNotes(institutionName, MEMORY_TASK),
+    loadInstitutionalKnowledge(institutionName, MEMORY_TASK),
+  ]);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -123,7 +147,7 @@ export async function exploreHoldings(
     return await runAgent<Holding[]>(
       page,
       TOOLS,
-      buildSystemPrompt(notes, account),
+      buildSystemPrompt(notes, knowledge, account),
       `Please fetch all holdings for account ${account.name}.`,
       async (name, input, pg) => {
         if (name === REPORT_HOLDINGS) {
@@ -131,6 +155,11 @@ export async function exploreHoldings(
           const raw = (input as { holdings: Holding[] }).holdings;
           const list = Array.isArray(raw) ? raw : [];
           return toolDone<Holding[]>(list, 'holdings recorded');
+        }
+
+        if (name === REPORT_HOLDINGS_NOT_AVAILABLE) {
+          track('report_holdings_not_available', 'success');
+          return toolDone<Holding[]>([], 'account not available on this platform');
         }
 
         if (TRACKED_TOOLS.has(name)) {
@@ -158,7 +187,7 @@ export async function exploreHoldings(
     );
   } finally {
     if (events.length > 0) {
-      console.log('🤖 Summarizing session...');
+      console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
         events,
         `fetching investment holdings for account "${account.name}" at ${institutionName}`,

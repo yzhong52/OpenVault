@@ -5,6 +5,7 @@ import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browse
 import { TRANSACTION_TOOL } from '../agent/tools';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
+  loadInstitutionalKnowledge, formatKnowledgeForPrompt,
   generateSessionNotes, type ToolEvent,
 } from '../memory';
 import type { Account } from './accounts';
@@ -82,6 +83,7 @@ const TRACKED_TOOLS = new Set<string>([
 
 function buildSystemPrompt(
   notes: string,
+  knowledge: string,
   account: Pick<Account, 'name' | 'accountId'>,
   lookbackDays: number,
   sinceDate: string,
@@ -107,7 +109,7 @@ have collected all transactions back to ${sinceDate}.
 5. Once you have everything, call ${REPORT_TRANSACTIONS} with the full list.
 
 Do not navigate to other accounts. Do not log out.
-${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
+${formatKnowledgeForPrompt(knowledge)}${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
 }
 
 export async function fetchTransactions(
@@ -117,13 +119,16 @@ export async function fetchTransactions(
   lookbackDays: number,
   sessionDir: string,
 ): Promise<Transaction[]> {
-  console.log(`🤖 Fetching transactions for ${account.name}...`);
+  console.log(`🤖 Fetching transactions for ${account.name}... ⏳`);
 
   const sinceDate = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
 
-  const notes = await loadMemoryNotes(institutionName, MEMORY_TASK);
+  const [notes, knowledge] = await Promise.all([
+    loadMemoryNotes(institutionName, MEMORY_TASK),
+    loadInstitutionalKnowledge(institutionName, MEMORY_TASK),
+  ]);
   const events: ToolEvent[] = [];
 
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
@@ -133,7 +138,7 @@ export async function fetchTransactions(
     return await runAgent<Transaction[]>(
       page,
       TOOLS,
-      buildSystemPrompt(notes, account, lookbackDays, sinceDate),
+      buildSystemPrompt(notes, knowledge, account, lookbackDays, sinceDate),
       `Please fetch transactions for account ${account.name} from ${sinceDate} to today.`,
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
@@ -168,7 +173,7 @@ export async function fetchTransactions(
     );
   } finally {
     if (events.length > 0) {
-      console.log('🤖 Summarizing session...');
+      console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
         events,
         `fetching transactions for account "${account.name}" at ${institutionName}`,

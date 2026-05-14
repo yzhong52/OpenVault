@@ -120,6 +120,10 @@ export async function runAgent<T>(
   maxTurns: number,
   maxTokens: number,
 ): Promise<T> {
+  const fullSystemPrompt = systemPrompt +
+    '\n\nIMPORTANT: If a tool call returns an error, do not retry it with the same arguments. ' +
+    'Switch to a different tool or a different selector/approach instead.';
+
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
   const snapshotsDir = `${sessionDir}/snapshots`;
@@ -164,12 +168,12 @@ export async function runAgent<T>(
   let pendingPrefix: ContentBlockParam[] = [initialBlock];
 
   const logFile = `${sessionDir}/${logName}.md`;
-  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`);
+  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(fullSystemPrompt)}\n\n`);
 
   // Tracks calls that have already failed, keyed by "toolName:JSON(input)".
   // When the same call fails a second time, the error is annotated with a hint
   // to try a different approach rather than retrying identically.
-  const failedCalls = new Map<string, string>();
+  const seenCalls = new Map<string, string>();
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const { snap, snapFile } = await takeSnapshot();
@@ -185,7 +189,7 @@ export async function runAgent<T>(
     const response = await getClient().messages.create({
       model: MODEL,
       max_tokens: maxTokens,
-      system: systemPrompt,
+      system: fullSystemPrompt,
       tools,
       tool_choice: { type: 'any' },
       messages: [...messages, { role: 'user', content: userContent }],
@@ -210,10 +214,6 @@ export async function runAgent<T>(
     let result: { value: T } | undefined;
 
     for (const toolUse of toolUses) {
-      // Detect if Claude is retrying the exact same failing call it already tried this turn.
-      const callKey = `${toolUse.name}:${JSON.stringify(toolUse.input)}`;
-      const priorError = failedCalls.get(callKey);
-
       if (!result) {
         if (toolUse.name === SUCCESS_TOOL) {
           console.log(`🔄 ${turn + 1}/${maxTurns} 💬 Mission accomplished`);
@@ -247,10 +247,11 @@ export async function runAgent<T>(
           }
         } catch (err) {
           output = redactSensitive(`error: ${err instanceof Error ? err.message : String(err)}`);
-          if (priorError) {
+          const callKey = `${toolUse.name}:${JSON.stringify(toolUse.input)}`;
+          if (seenCalls.has(callKey)) {
             output += '\n\nThis exact call already failed before. Do NOT retry it — use a different tool or selector instead.';
           } else {
-            failedCalls.set(callKey, output);
+            seenCalls.set(callKey, output);
           }
           if (VERBOSE) {
             const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;

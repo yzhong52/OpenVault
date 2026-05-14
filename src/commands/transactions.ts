@@ -160,7 +160,7 @@ export function makeTransactionsCommand(): Command {
             continue;
           }
 
-          console.log(`\n🤖 Syncing transactions for ${inst.name}...`);
+          console.log(`\n🤖 Syncing transactions for ${inst.name}... ⏳`);
           const sessionDir = await createSession(inst.url);
           await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir);
 

@@ -24,7 +24,7 @@ export async function fetchMfaCode(since: Date): Promise<string | null> {
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
 
-  console.log('Checking Gmail for MFA code...');
+  console.log('Checking Gmail for MFA code... ⏳');
 
   try {
     await client.connect();
@@ -37,7 +37,7 @@ export async function fetchMfaCode(since: Date): Promise<string | null> {
         await client.noop();
         const code = await searchForCode(client, since);
         if (code) return code;
-        if (++attempt % 5 === 0) console.log('Still waiting for MFA email...');
+        if (++attempt % 5 === 0) console.log('Still waiting for MFA email... ⏳');
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
       }
     } finally {
