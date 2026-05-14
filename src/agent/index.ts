@@ -167,11 +167,6 @@ export async function runAgent<T>(
   const logFile = `${sessionDir}/${logName}.md`;
   await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`);
 
-  // Tracks calls that have already failed, keyed by "toolName:JSON(input)".
-  // When the same call fails a second time, the error is annotated with a hint
-  // to try a different approach rather than retrying identically.
-  const seenCalls = new Map<string, string>();
-
   for (let turn = 0; turn < maxTurns; turn++) {
     const { snap, snapFile } = await takeSnapshot();
     // API receives the full snapshot content; the log records the file path instead
@@ -233,18 +228,6 @@ export async function runAgent<T>(
             result = { value: r.value };
           } else {
             output = redactSensitive(r);
-            const isSnapshot = toolUse.name === BROWSER_TOOL.SNAPSHOT ||
-              toolUse.name === BROWSER_TOOL.FRAME_SNAPSHOT;
-            if (!isSnapshot) {
-              const callKey = `${toolUse.name}:${JSON.stringify(toolUse.input)}`;
-              if (seenCalls.get(callKey) === output) {
-                output += `\n\nThis exact call already returned the same result before: ` +
-                  `${toolUse.name}(${JSON.stringify(toolUse.input)}). ` +
-                  `The page has not changed. Try a different approach.`;
-              } else {
-                seenCalls.set(callKey, output);
-              }
-            }
             const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
             if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
               if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
@@ -255,13 +238,12 @@ export async function runAgent<T>(
             toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
           }
         } catch (err) {
+          // TODO: break retry loops — the model sometimes retries the same failing call
+          // repeatedly even when the error is unrecoverable. Appending a "do not retry"
+          // hint to the tool result was tried (tracking seen calls by toolName+input) but
+          // didn't reliably stop the loop in practice because the model still found reasons
+          // to retry given the full conversation history. Needs a better approach.
           output = redactSensitive(`error: ${err instanceof Error ? err.message : String(err)}`);
-          const callKey = `${toolUse.name}:${JSON.stringify(toolUse.input)}`;
-          if (seenCalls.has(callKey)) {
-            output += `\n\nThis exact call already failed before: ${toolUse.name}(${JSON.stringify(toolUse.input)}). Do NOT retry it.`;
-          } else {
-            seenCalls.set(callKey, output);
-          }
           if (VERBOSE) {
             const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
             // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
