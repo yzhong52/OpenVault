@@ -233,6 +233,18 @@ export async function runAgent<T>(
             result = { value: r.value };
           } else {
             output = redactSensitive(r);
+            const isSnapshot = toolUse.name === BROWSER_TOOL.SNAPSHOT ||
+              toolUse.name === BROWSER_TOOL.FRAME_SNAPSHOT;
+            if (!isSnapshot) {
+              const callKey = `${toolUse.name}:${JSON.stringify(toolUse.input)}`;
+              if (seenCalls.get(callKey) === output) {
+                output += `\n\nThis exact call already returned the same result before: ` +
+                  `${toolUse.name}(${JSON.stringify(toolUse.input)}). ` +
+                  `The page has not changed. Try a different approach.`;
+              } else {
+                seenCalls.set(callKey, output);
+              }
+            }
             const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
             if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
               if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
