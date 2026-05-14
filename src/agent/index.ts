@@ -166,6 +166,11 @@ export async function runAgent<T>(
   const logFile = `${sessionDir}/${logName}.md`;
   await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`);
 
+  // Tracks calls that have already failed, keyed by "toolName:JSON(input)".
+  // When the same call fails a second time, the error is annotated with a hint
+  // to try a different approach rather than retrying identically.
+  const failedCalls = new Map<string, string>();
+
   for (let turn = 0; turn < maxTurns; turn++) {
     const { snap, snapFile } = await takeSnapshot();
     // API receives the full snapshot content; the log records the file path instead
@@ -205,6 +210,10 @@ export async function runAgent<T>(
     let result: { value: T } | undefined;
 
     for (const toolUse of toolUses) {
+      // Detect if Claude is retrying the exact same failing call it already tried this turn.
+      const callKey = `${toolUse.name}:${JSON.stringify(toolUse.input)}`;
+      const priorError = failedCalls.get(callKey);
+
       if (!result) {
         if (toolUse.name === SUCCESS_TOOL) {
           console.log(`🔄 ${turn + 1}/${maxTurns} 💬 Mission accomplished`);
@@ -238,6 +247,11 @@ export async function runAgent<T>(
           }
         } catch (err) {
           output = redactSensitive(`error: ${err instanceof Error ? err.message : String(err)}`);
+          if (priorError) {
+            output += '\n\nThis exact call already failed before. Do NOT retry it — use a different tool or selector instead.';
+          } else {
+            failedCalls.set(callKey, output);
+          }
           if (VERBOSE) {
             const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
             // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
