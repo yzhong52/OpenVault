@@ -28,7 +28,7 @@ export async function fetchMfaCode(since: Date): Promise<string | null> {
 
   try {
     await client.connect();
-    const lock = await client.getMailboxLock('INBOX');
+    const lock = await client.getMailboxLock('[Gmail]/All Mail');
 
     try {
       let attempt = 0;
