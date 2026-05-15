@@ -18,6 +18,7 @@ export const ACCOUNT_TYPES = [
   'RRIF',            // Registered Retirement Income Fund
   'RRSP',            // Registered Retirement Savings Plan
   'TFSA',            // Tax-Free Savings Account
+  'Unknown',         // Cannot determine from available page information
 ] as const;
 
 export type AccountType = typeof ACCOUNT_TYPES[number];
@@ -29,6 +30,8 @@ export const ACCOUNT_CATEGORIES = [
   'Credit',                 // Liability (credit card, mortgage, line of credit)
   'Self-Directed Investing', // User picks individual positions
   'Managed Investing',       // Robo-advisor or professionally managed
+  'General',                 // Catch-all when no other category fits
+  'Unknown',                 // Cannot determine from available page information
 ] as const;
 
 // Legacy category names — kept for backwards compatibility with existing DB rows. Do not use for new accounts.
@@ -69,7 +72,11 @@ const REPORT_TOOL: Tool = {
             type: {
               type: 'string',
               enum: ACCOUNT_TYPES,
-              description: 'Registered account type or tax wrapper. Use "General" for any account without a special government registration (chequing, savings, credit card, non-registered brokerage, etc.).',
+              description: [
+                'Registered account type or tax wrapper.',
+                'Use "General" for any account without a special government registration (chequing, savings, credit card, non-registered brokerage, etc.).',
+                'Use "Unknown" only if the registration type cannot be determined from the page.',
+              ].join(' '),
             },
             category: {
               type: 'string',
@@ -82,6 +89,8 @@ const REPORT_TOOL: Tool = {
                 '- Use "Credit" for liabilities such as credit cards, mortgages, and lines of credit.',
                 '- Use "Self-Directed Investing" for investment accounts where the user selects and manages individual positions.',
                 '- Use "Managed Investing" for robo-advisor accounts or professionally managed portfolios.',
+                '- Use "General" for accounts that do not fit any of the above categories.',
+                '- Use "Unknown" only if the category cannot be determined from the page.',
               ].join('\n'),
             },
             currency: { type: 'string', description: 'ISO 4217 currency code if known, e.g. CAD, USD. Omit for default domestic currency.' },
@@ -108,12 +117,12 @@ const TRACKED_TOOLS = new Set<string>([
 
 function buildSystemPrompt(
   notes: string,
-  existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[],
+  existingAccounts: Pick<Account, 'name' | 'accountId'>[],
 ): string {
   let existingAccountsMsg = '';
   if (existingAccounts && existingAccounts.length > 0) {
     existingAccountsMsg = `\nPreviously seen accounts for this institution:\n` +
-      existingAccounts.map(a => `- "${a.name}" (ID: ${a.accountId || 'none'}, Type: ${a.type || 'unknown'}, Currency: ${a.currency || 'unknown'})`).join('\n') +
+      existingAccounts.map(a => `- "${a.name}" (ID: ${a.accountId || 'none'})`).join('\n') +
       `\n\nIMPORTANT: If you see an account that matches one of the above, please report it using the exact same name and ID from this list to prevent duplicates. If it has a new ID or doesn't match, treat it as a new account.\n`;
   }
 
@@ -136,7 +145,7 @@ export async function exploreAccounts(
   page: Page,
   institutionName: string,
   sessionDir: string,
-  existingAccounts: Pick<Account, 'name' | 'type' | 'currency' | 'accountId'>[] = [],
+  existingAccounts: Pick<Account, 'name' | 'accountId'>[] = [],
   model: string,
 ): Promise<Account[]> {
   console.log(SEPARATOR);

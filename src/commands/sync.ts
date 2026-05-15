@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { login } from '../tasks/login';
-import { exploreAccounts, type AccountType } from '../tasks/accounts';
+import { exploreAccounts } from '../tasks/accounts';
 import { exploreHoldings } from '../tasks/holdings';
 import { fetchTransactions } from '../tasks/transactions';
 import { createSession } from '../agent';
@@ -86,16 +86,11 @@ export function makeSyncCommand(): Command {
             console.log(`\n  📋 Accounts`);
             const existingAccounts = listAccounts(db)
               .filter(a => a.institutionName === inst.name)
-              .map(a => {
+              .map(a => ({
+                name: a.accountName,
                 // accountId falls back to name when no real ID was found; omit the hint if so
-                const accountId = a.accountId !== a.accountName ? a.accountId : undefined;
-                return {
-                  name: a.accountName,
-                  accountId,
-                  type: (a.accountType ?? undefined) as AccountType | undefined,
-                  currency: a.accountCurrency ?? undefined,
-                };
-              });
+                accountId: a.accountId !== a.accountName ? a.accountId : undefined,
+              }));
 
             const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccounts, opts.model);
             const diff = saveSync(db, inst.name, inst.url, accounts);
