@@ -21,6 +21,36 @@ function getDemoHoldingValue(key: string): number {
   return value;
 }
 
+const DEMO_HOLDINGS = [
+  { symbol: 'SPY',  name: 'SPDR S&P 500 ETF' },
+  { symbol: 'QQQ',  name: 'Invesco Nasdaq 100 ETF' },
+  { symbol: 'VTI',  name: 'Vanguard Total Market ETF' },
+  { symbol: 'VFV',  name: 'Vanguard S&P 500 Index ETF' },
+  { symbol: 'AAPL', name: 'Apple Inc.' },
+  { symbol: 'MSFT', name: 'Microsoft Corp.' },
+  { symbol: 'NVDA', name: 'NVIDIA Corp.' },
+  { symbol: 'GOOGL', name: 'Alphabet Inc.' },
+  { symbol: 'AMZN', name: 'Amazon.com Inc.' },
+  { symbol: 'META', name: 'Meta Platforms Inc.' },
+  { symbol: 'TSLA', name: 'Tesla Inc.' },
+  { symbol: 'BRK.B', name: 'Berkshire Hathaway' },
+  { symbol: 'JPM',  name: 'JPMorgan Chase & Co.' },
+  { symbol: 'JNJ',  name: 'Johnson & Johnson' },
+  { symbol: 'XEI',  name: 'iShares S&P/TSX Comp High Div ETF' },
+  { symbol: 'GLD',  name: 'SPDR Gold Shares' },
+  { symbol: 'VYM',  name: 'Vanguard High Dividend Yield ETF' },
+  { symbol: 'AGG',  name: 'iShares Core US Aggregate Bond ETF' },
+  { symbol: 'VGT',  name: 'Vanguard Information Technology ETF' },
+  { symbol: 'SHOP', name: 'Shopify Inc.' },
+];
+
+// Deterministically map a real symbol to a demo holding so it's stable across requests.
+function getDemoHolding(realSymbol: string): { symbol: string; name: string } {
+  let hash = 0;
+  for (let i = 0; i < realSymbol.length; i++) hash = (hash * 31 + realSymbol.charCodeAt(i)) & 0x7fffffff;
+  return DEMO_HOLDINGS[hash % DEMO_HOLDINGS.length];
+}
+
 function isDemoDebt(accountId: string, type: string | null): boolean {
   if (type === 'credit' || type === 'loan') return true;
   // Deterministically make ~1 in 4 accounts a debt account.
@@ -180,8 +210,16 @@ app.get('/api/holdings', (c) => {
     let rows = listHoldings(db);
     if (demo) {
       rows = rows.map(h => {
+        const fake = getDemoHolding(h.symbol);
         const mv = getDemoHoldingValue(`${h.institutionName}/${h.accountName}/${h.symbol}`);
-        return { ...h, marketValueCents: mv, pricePerUnitCents: Math.round(mv / Math.max(h.quantity, 1)) };
+        return {
+          ...h,
+          symbol: fake.symbol,
+          name: fake.name,
+          marketValueCents: mv,
+          pricePerUnitCents: Math.round(mv / Math.max(h.quantity, 1)),
+          costBasisCents: h.costBasisCents != null ? Math.round(mv * 0.85) : null,
+        };
       });
     }
     return c.json(rows);
