@@ -9,19 +9,14 @@ import {
 } from '../memory';
 
 export const ACCOUNT_TYPES = [
-  'Cash',
-  'Chequing',
-  'Credit',
+  'General',         // No special tax wrapper (chequing, savings, credit card, brokerage cash, etc.)
   'FHSA',            // First Home Savings Account
   'LIF',             // Life Income Fund
-  'Line of Credit',
   'LIRA',            // Locked-In Retirement Account
-  'Mortgage',
   'RDSP',            // Registered Disability Savings Plan
   'RESP',            // Registered Education Savings Plan
   'RRIF',            // Registered Retirement Income Fund
   'RRSP',            // Registered Retirement Savings Plan
-  'Savings',
   'TFSA',            // Tax-Free Savings Account
 ] as const;
 
@@ -57,7 +52,10 @@ const REPORT_ACCOUNTS = ACCOUNT_TOOL.REPORT_ACCOUNTS;
 
 const REPORT_TOOL: Tool = {
   name: REPORT_ACCOUNTS,
-  description: 'Report all accounts you found. Call this once you have collected all account names, types, and balances visible on the page.',
+  description: [
+    'Report all accounts you found.',
+    'Call this once you have collected all account names, types, and balances visible on the page.'
+  ].join(' '),
   input_schema: {
     type: 'object',
     properties: {
@@ -71,7 +69,7 @@ const REPORT_TOOL: Tool = {
             type: {
               type: 'string',
               enum: ACCOUNT_TYPES,
-              description: 'Account type or tax wrapper — e.g. "TFSA", "RRSP", "Chequing", "Savings", "Credit". Pick the closest match from the enum.',
+              description: 'Registered account type or tax wrapper. Use "General" for any account without a special government registration (chequing, savings, credit card, non-registered brokerage, etc.).',
             },
             category: {
               type: 'string',
