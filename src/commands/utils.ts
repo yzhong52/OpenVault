@@ -69,6 +69,7 @@ export interface AccountEntry {
   account: string;
   accountId?: string;
   type: string;
+  category?: string;
   currency?: string;
   balance: string;
   lastUpdated: string;
@@ -79,15 +80,16 @@ export function printAccountsTable(
   { demo, showInstitution }: { demo: boolean; showInstitution: boolean },
 ): void {
   if (demo) entries = entries.map(applyDemo);
-  const headers = { account: 'Account', accountId: 'ID', type: 'Type', balance: 'Balance', lastUpdated: 'Last Updated' };
+  const headers = { account: 'Account', accountId: 'ID', type: 'Type', category: 'Category', balance: 'Balance', lastUpdated: 'Last Updated' };
   const showAccountId = entries.some(e => e.accountId != null);
+  const showCategory = entries.some(e => e.category != null);
 
   const formatted = entries.map(e => ({
     ...e,
     balance: e.currency && e.balance !== '—' ? `${e.currency} ${e.balance}` : e.balance,
   }));
 
-  const width = (key: 'institution' | 'account' | 'accountId' | 'type' | 'balance' | 'lastUpdated') =>
+  const width = (key: 'institution' | 'account' | 'accountId' | 'type' | 'category' | 'balance' | 'lastUpdated') =>
     Math.max(
       key === 'institution' ? 'Institution'.length : headers[key as keyof typeof headers].length,
       ...formatted.map(e => (e[key] ?? '').length),
@@ -97,6 +99,7 @@ export function printAccountsTable(
     account: width('account'),
     accountId: showAccountId ? width('accountId') : 0,
     type: width('type'),
+    category: showCategory ? width('category') : 0,
     balance: width('balance'),
     lastUpdated: width('lastUpdated'),
   };
@@ -106,19 +109,21 @@ export function printAccountsTable(
     e.account.padEnd(w.account),
     showAccountId ? (e.accountId ?? '').padEnd(w.accountId) : null,
     e.type.padEnd(w.type),
+    showCategory ? (e.category ?? '').padEnd(w.category) : null,
     e.balance.padStart(w.balance),
     e.lastUpdated ?? '',
   ].filter(Boolean).join('  ');
 
   const header = fmt({
     institution: 'Institution', account: 'Account', accountId: 'ID', type: 'Type',
-    balance: 'Balance', lastUpdated: 'Last Updated',
+    category: 'Category', balance: 'Balance', lastUpdated: 'Last Updated',
   });
   const divider = fmt({
     institution: '-'.repeat(w.institution),
     account: '-'.repeat(w.account),
     accountId: '-'.repeat(w.accountId),
     type: '-'.repeat(w.type),
+    category: '-'.repeat(w.category),
     balance: '-'.repeat(w.balance),
     lastUpdated: '-'.repeat(w.lastUpdated),
   });
