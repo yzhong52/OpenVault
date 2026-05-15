@@ -2,7 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
-import { TRANSACTION_TOOL } from '../agent/tools';
+import { TRANSACTION_TOOL, DONE_TOOL, DONE_TOOL_DEF } from '../agent/tools';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
   generateSessionNotes, type ToolEvent,
@@ -24,8 +24,9 @@ const MAX_TURNS = 40;
 const REPORT_TOOL: Tool = {
   name: REPORT_TRANSACTIONS,
   description:
-    'Report all transactions you found. Call this once you have collected all transactions ' +
-    'for the requested date range — including any paginated results.',
+    'Report transactions visible in the current view. Call this each time you collect a batch ' +
+    '(e.g. per page of results) — results accumulate. ' +
+    'When you have collected all transactions for the date range, call done.',
   input_schema: {
     type: 'object',
     properties: {
@@ -72,7 +73,7 @@ const REPORT_TOOL: Tool = {
   },
 };
 
-const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL];
+const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL, DONE_TOOL_DEF];
 
 const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.CLICK, BROWSER_TOOL.CLICK_TESTID, BROWSER_TOOL.CLICK_TEXT,
@@ -101,10 +102,10 @@ Steps:
 a "Transactions" or "Activity" tab, or a date-range filter.
 2. Make sure the date range covers from ${sinceDate} to today. If there is a date filter, set it \
 accordingly. If the default range already covers this period, that is fine.
-3. Collect every transaction visible on the page.
-4. If there is pagination (e.g. "Load more", "Next page", numbered pages), continue until you \
-have collected all transactions back to ${sinceDate}.
-5. Once you have everything, call ${REPORT_TRANSACTIONS} with the full list.
+3. Collect every transaction visible on the page and call ${REPORT_TRANSACTIONS} with this batch.
+4. If there is pagination (e.g. "Load more", "Next page", numbered pages), continue clicking \
+through pages, calling ${REPORT_TRANSACTIONS} for each batch, until you reach ${sinceDate}.
+5. Once you have reported all transactions, call done.
 
 Do not navigate to other accounts. Do not log out.
 ${formatMemoryForPrompt(notes, MEMORY_TASK)}`;
@@ -131,6 +132,8 @@ export async function fetchTransactions(
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
     events.push({ description, outcome, error });
 
+  const collectedTransactions: Transaction[] = [];
+
   try {
     return await runAgent<Transaction[]>(
       page,
@@ -139,10 +142,17 @@ export async function fetchTransactions(
       `Please fetch transactions for account ${account.name} from ${sinceDate} to today.`,
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
+          const batch = Array.isArray((input as { transactions: Transaction[] }).transactions)
+            ? (input as { transactions: Transaction[] }).transactions
+            : [];
+          collectedTransactions.push(...batch);
           track('report_transactions', 'success');
-          const raw = (input as { transactions: Transaction[] }).transactions;
-          const txs = Array.isArray(raw) ? raw : [];
-          return toolDone<Transaction[]>(txs, 'transactions recorded');
+          return `${batch.length} transactions recorded (${collectedTransactions.length} total so far). Continue paginating or call done if finished.`;
+        }
+
+        if (name === DONE_TOOL) {
+          track('done', 'success');
+          return toolDone<Transaction[]>(collectedTransactions, `done — ${collectedTransactions.length} transactions collected`);
         }
 
         if (TRACKED_TOOLS.has(name)) {

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { login } from '../tasks/login';
-import { exploreAccounts } from '../tasks/accounts';
+import { exploreAccounts, type ExistingAccountHint } from '../tasks/accounts';
 import { exploreHoldings } from '../tasks/holdings';
 import { fetchTransactions } from '../tasks/transactions';
 import { createSession } from '../agent';
@@ -84,12 +84,13 @@ export function makeSyncCommand(): Command {
           if (!opts.skipAccounts) {
             // --- Accounts ---
             console.log(`\n  📋 Accounts`);
-            const existingAccounts = listAccounts(db)
+            const existingAccounts: ExistingAccountHint[] = listAccounts(db)
               .filter(a => a.institutionName === inst.name)
               .map(a => ({
+                dbId: a.id,
                 name: a.accountName,
-                // accountId falls back to name when no real ID was found; omit the hint if so
-                accountId: a.accountId !== a.accountName ? a.accountId : undefined,
+                // institutionAccountId falls back to name when no real ID was found; omit if so
+                institutionAccountId: a.accountId !== a.accountName ? a.accountId : undefined,
               }));
 
             const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccounts, opts.model);

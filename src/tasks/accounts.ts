@@ -2,7 +2,7 @@ import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
-import { ACCOUNT_TOOL } from '../agent/tools';
+import { ACCOUNT_TOOL, DONE_TOOL, DONE_TOOL_DEF } from '../agent/tools';
 import {
   loadMemoryNotes, saveMemoryNotes, formatMemoryForPrompt,
   generateSessionNotes, type ToolEvent,
@@ -56,8 +56,10 @@ const REPORT_ACCOUNTS = ACCOUNT_TOOL.REPORT_ACCOUNTS;
 const REPORT_TOOL: Tool = {
   name: REPORT_ACCOUNTS,
   description: [
-    'Report all accounts you found.',
-    'Call this once you have collected all account names, types, and balances visible on the page.'
+    'Report accounts visible in the current view.',
+    'Call this each time you find a new set of accounts (e.g. after landing on a tab or section).',
+    'You can call it multiple times — results accumulate.',
+    'When you have navigated all sections and reported all accounts, call done.',
   ].join(' '),
   input_schema: {
     type: 'object',
@@ -104,7 +106,7 @@ const REPORT_TOOL: Tool = {
   },
 };
 
-const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL];
+const TOOLS = [...BROWSER_TOOLS, REPORT_TOOL, DONE_TOOL_DEF];
 
 // Tools whose outcomes are recorded as ToolEvents and later summarized into
 // per-institution memory. Include any tool where success/failure is worth
@@ -115,27 +117,34 @@ const TRACKED_TOOLS = new Set<string>([
   BROWSER_TOOL.FRAME_SNAPSHOT, BROWSER_TOOL.GET_INPUTS,
 ]);
 
-function buildSystemPrompt(
-  notes: string,
-  existingAccounts: Pick<Account, 'name' | 'accountId'>[],
-): string {
+export interface ExistingAccountHint {
+  dbId: number;
+  name: string;
+  institutionAccountId?: string;
+}
+
+function buildSystemPrompt(notes: string, existingAccounts: ExistingAccountHint[]): string {
   let existingAccountsMsg = '';
   if (existingAccounts && existingAccounts.length > 0) {
     existingAccountsMsg = `\nPreviously seen accounts for this institution:\n` +
-      existingAccounts.map(a => `- "${a.name}" (ID: ${a.accountId || 'none'})`).join('\n') +
-      `\n\nIMPORTANT: If you see an account that matches one of the above, please report it using the exact same name and ID from this list to prevent duplicates. If it has a new ID or doesn't match, treat it as a new account.\n`;
+      existingAccounts.map(a => {
+        const instId = a.institutionAccountId ? `, Institution ID: ${a.institutionAccountId}` : '';
+        return `- "${a.name}" (DB ID: ${a.dbId}${instId})`;
+      }).join('\n') +
+      `\n\nIMPORTANT: If you see an account that matches one of the above, please report it using the exact same name and Institution ID from this list to prevent duplicates. If it has a new ID or doesn't match, treat it as a new account.\n`;
   }
 
   return `\
 You are a browser automation agent. The user has just logged into their financial institution and the dashboard is visible.
 
-Your job is to find all accounts on the page — including their names, types, categories, currency (if non-default, e.g. USD), and balances.
+Your job is to find all accounts — including their names, types, categories, currency (if non-default, e.g. USD), and balances.
 
 Steps:
-1. The current page state is already provided — identify all account entries.
-2. They typically appear as a list with a label and a dollar amount.
-3. If accounts are behind a tab or link (e.g. "All accounts", "Holdings"), click it.
-4. Once you have a complete list, call report_accounts with all the accounts you found.
+1. The current page state is already provided — identify all account entries visible now.
+2. Accounts typically appear as a list with a label and a dollar amount.
+3. Call report_accounts with the accounts visible in the current view.
+4. If more accounts are behind a tab or link (e.g. "All accounts", "Holdings"), click it and call report_accounts again for that section.
+5. Repeat until all sections are explored, then call done.
 ${existingAccountsMsg}
 Do not navigate away from the dashboard. Do not click login/logout links.
 ${formatMemoryForPrompt(notes, 'accounts')}`;
@@ -145,7 +154,7 @@ export async function exploreAccounts(
   page: Page,
   institutionName: string,
   sessionDir: string,
-  existingAccounts: Pick<Account, 'name' | 'accountId'>[] = [],
+  existingAccounts: ExistingAccountHint[] = [],
   model: string,
 ): Promise<Account[]> {
   console.log(SEPARATOR);
@@ -157,6 +166,8 @@ export async function exploreAccounts(
   const track = (description: string, outcome: 'success' | 'error', error?: string) =>
     events.push({ description, outcome, error });
 
+  const collectedAccounts: Account[] = [];
+
   try {
     return await runAgent<Account[]>(
       page,
@@ -165,9 +176,15 @@ export async function exploreAccounts(
       'The user is now logged in.',
       async (name, input, pg) => {
         if (name === REPORT_ACCOUNTS) {
+          const batch = (input as { accounts: Account[] }).accounts;
+          collectedAccounts.push(...batch);
           track('report_accounts', 'success');
-          const accounts = (input as { accounts: Account[] }).accounts;
-          return toolDone<Account[]>(accounts, 'accounts recorded');
+          return `${batch.length} accounts recorded (${collectedAccounts.length} total so far). Navigate to the next section or call done_accounts if finished.`;
+        }
+
+        if (name === DONE_TOOL) {
+          track('done', 'success');
+          return toolDone<Account[]>(collectedAccounts, `done — ${collectedAccounts.length} accounts collected`);
         }
 
         if (TRACKED_TOOLS.has(name)) {

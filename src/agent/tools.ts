@@ -2,6 +2,17 @@
  *  Import from here rather than defining string literals inline so that
  *  every reference to a tool name is a single, trackable symbol. */
 
+import type { Tool } from '@anthropic-ai/sdk/resources/messages';
+
+/** Generic done tool — signals the agent has finished collecting all items. */
+export const DONE_TOOL = 'done';
+
+export const DONE_TOOL_DEF: Tool = {
+  name: DONE_TOOL,
+  description: 'Signal that you have finished exploring all sections and reported all items. Call this once all report_* calls are done.',
+  input_schema: { type: 'object', properties: {}, required: [] },
+};
+
 export const BROWSER_TOOL = {
   SNAPSHOT:        'snapshot',
   FRAME_SNAPSHOT:  'frame_snapshot',
