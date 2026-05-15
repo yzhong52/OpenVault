@@ -104,7 +104,12 @@ export function makeSyncCommand(): Command {
 
             if (!opts.skipHoldings) {
               const investmentAccounts = accounts.filter(
-                a => a.category === 'Brokerage' || a.category === 'Managed Investment',
+                a =>
+                  a.category === 'Self-Directed Investing' ||
+                  a.category === 'Managed Investing' ||
+                  // Legacy category names:
+                  a.category === 'Brokerage' ||
+                  a.category === 'Managed Investment',
               );
               for (const account of investmentAccounts) {
                 const row = allSyncedAccounts.find(

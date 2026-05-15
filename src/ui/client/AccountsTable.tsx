@@ -37,10 +37,13 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  'Cash':               { bg: 'oklch(0.93 0.06 145)', text: 'oklch(0.32 0.13 145)' },
-  'Credit':             { bg: 'oklch(0.92 0.07 20)',  text: 'oklch(0.38 0.15 20)'  },
-  'Brokerage':          { bg: 'oklch(0.92 0.07 240)', text: 'oklch(0.36 0.14 240)' },
-  'Managed Investment': { bg: 'oklch(0.92 0.06 270)', text: 'oklch(0.33 0.15 270)' },
+  'Cash':                   { bg: 'oklch(0.93 0.06 145)', text: 'oklch(0.32 0.13 145)' },
+  'Credit':                 { bg: 'oklch(0.92 0.07 20)',  text: 'oklch(0.38 0.15 20)'  },
+  'Self-Directed Investing': { bg: 'oklch(0.92 0.07 240)', text: 'oklch(0.36 0.14 240)' },
+  'Managed Investing':       { bg: 'oklch(0.92 0.06 270)', text: 'oklch(0.33 0.15 270)' },
+  // Legacy — kept for existing DB rows:
+  'Brokerage':              { bg: 'oklch(0.92 0.07 240)', text: 'oklch(0.36 0.14 240)' },
+  'Managed Investment':     { bg: 'oklch(0.92 0.06 270)', text: 'oklch(0.33 0.15 270)' },
 };
 
 function CategoryBadge({ category }: { category: string }) {

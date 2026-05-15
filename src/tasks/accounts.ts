@@ -28,14 +28,20 @@ export const ACCOUNT_TYPES = [
 export type AccountType = typeof ACCOUNT_TYPES[number];
 
 // Behavioral category — orthogonal to type. Drives holdings sync and UI grouping.
+// Active categories used by the agent:
 export const ACCOUNT_CATEGORIES = [
-  'Cash',               // Spendable money (chequing, savings, TFSA savings, etc.)
-  'Credit',             // Liability (credit card, mortgage, line of credit)
-  'Brokerage',          // Self-directed — user picks individual positions
-  'Managed Investment', // Managed/robo-advisor — manager picks positions
+  'Cash',                   // Spendable money (chequing, savings, TFSA savings, etc.)
+  'Credit',                 // Liability (credit card, mortgage, line of credit)
+  'Self-Directed Investing', // User picks individual positions
+  'Managed Investing',       // Robo-advisor or professionally managed
 ] as const;
 
-export type AccountCategory = typeof ACCOUNT_CATEGORIES[number];
+// Legacy category names — kept for backwards compatibility with existing DB rows. Do not use for new accounts.
+export const LEGACY_ACCOUNT_CATEGORIES = ['Brokerage', 'Managed Investment'] as const;
+
+export type AccountCategory =
+  | typeof ACCOUNT_CATEGORIES[number]
+  | typeof LEGACY_ACCOUNT_CATEGORIES[number];
 
 export interface Account {
   name: string;
@@ -70,7 +76,15 @@ const REPORT_TOOL: Tool = {
             category: {
               type: 'string',
               enum: ACCOUNT_CATEGORIES,
-              description: 'Behavioral category. Use "Cash" for spending/savings accounts; "Credit" for liabilities (credit cards, mortgages, lines of credit); "Brokerage" for self-directed investment accounts where the user picks individual positions; "Managed Investment" for robo-advisor or professionally managed portfolios.',
+              description: [
+                'Behavioral category used for account classification:',
+                '- Use "Cash" for spending and savings accounts, including chequing accounts, savings accounts, and TFSA savings accounts.',
+                ' Cash accounts do not hold investment assets such as stocks or ETFs.',
+                ' If you see profolio, P&L, self-directed, etc. then it cannot be Cash account.',
+                '- Use "Credit" for liabilities such as credit cards, mortgages, and lines of credit.',
+                '- Use "Self-Directed Investing" for investment accounts where the user selects and manages individual positions.',
+                '- Use "Managed Investing" for robo-advisor accounts or professionally managed portfolios.',
+              ].join('\n'),
             },
             currency: { type: 'string', description: 'ISO 4217 currency code if known, e.g. CAD, USD. Omit for default domestic currency.' },
             balance:  { type: 'number', description: 'Current balance as a plain number. Omit currency symbols and commas. For Credit accounts (credit cards, lines of credit, mortgages): report negative when you owe money (normal carry, e.g. -500 for a $500 balance owed), report positive only when the institution owes you (e.g. overpayment credit). Do not mirror the page sign blindly — use the semantic direction.' },
@@ -115,9 +129,6 @@ Steps:
 2. They typically appear as a list with a label and a dollar amount.
 3. If accounts are behind a tab or link (e.g. "All accounts", "Holdings"), click it.
 4. Once you have a complete list, call report_accounts with all the accounts you found.
-   - Set "type" to the tax wrapper or account style (e.g. "TFSA", "RRSP", "Chequing", "Savings", "Credit").
-   - Set "category" based on what the account does: "Cash" for everyday banking/savings, "Credit" for liabilities, "Brokerage" for self-directed investment accounts, "Managed Investment" for managed/robo-advisor portfolios. A TFSA can be Cash or Brokerage depending on whether it holds securities.
-   - Set "currency" to the ISO 4217 code (e.g. "USD") only when the account is in a non-default foreign currency. Omit it for domestic accounts.
 ${existingAccountsMsg}
 Do not navigate away from the dashboard. Do not click login/logout links.
 ${formatMemoryForPrompt(notes, 'accounts')}`;
