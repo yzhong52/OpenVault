@@ -12,13 +12,15 @@ const app = new Hono();
 
 // Stable per-session demo values so numbers don't change on every request.
 const demoBalances = new Map<string, number>();
-const demoHoldingValues = new Map<string, number>();
+const demoSymbolPrices = new Map<string, number>();
 
-function getDemoHoldingValue(key: string): number {
-  if (demoHoldingValues.has(key)) return demoHoldingValues.get(key)!;
-  const value = Math.floor((Math.random() * (30_000 - 500) + 500) * 100);
-  demoHoldingValues.set(key, value);
-  return value;
+// One stable price per symbol (in cents). Market value is derived as price × quantity,
+// so the same symbol always shows a consistent price across accounts.
+function getDemoSymbolPrice(symbol: string): number {
+  if (demoSymbolPrices.has(symbol)) return demoSymbolPrices.get(symbol)!;
+  const price = Math.floor((Math.random() * (50_000 - 500) + 500) * 100);
+  demoSymbolPrices.set(symbol, price);
+  return price;
 }
 
 const DEMO_HOLDINGS = [
@@ -211,13 +213,14 @@ app.get('/api/holdings', (c) => {
     if (demo) {
       rows = rows.map(h => {
         const fake = getDemoHolding(h.symbol);
-        const mv = getDemoHoldingValue(`${h.institutionName}/${h.accountName}/${h.symbol}`);
+        const price = getDemoSymbolPrice(h.symbol);
+        const mv = Math.round(price * Math.max(h.quantity, 1));
         return {
           ...h,
           symbol: fake.symbol,
           name: fake.name,
+          pricePerUnitCents: price,
           marketValueCents: mv,
-          pricePerUnitCents: Math.round(mv / Math.max(h.quantity, 1)),
           costBasisCents: h.costBasisCents != null ? Math.round(mv * 0.85) : null,
         };
       });
