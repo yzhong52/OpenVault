@@ -189,14 +189,26 @@ export function printHoldingsTable(holdings: Holding[]): void {
   console.log();
 }
 
+export async function confirm(label: string, defaultYes = false): Promise<boolean> {
+  const idx = await selectFromList(
+    ['Yes', 'No'],
+    label,
+    new Set(),
+    undefined,
+    defaultYes ? 0 : 1,
+  );
+  return idx === 0;
+}
+
 export function selectFromList(
   items: string[],
   label: string,
   skipIndices: Set<number> = new Set(),
   header?: string,
+  defaultIndex?: number,
 ): Promise<number> {
   const firstSelectable = items.findIndex((_, i) => !skipIndices.has(i));
-  let selected = firstSelectable === -1 ? 0 : firstSelectable;
+  let selected = defaultIndex ?? (firstSelectable === -1 ? 0 : firstSelectable);
 
   const render = (first: boolean) => {
     if (!first) process.stdout.write(`\x1b[${items.length}A`);
