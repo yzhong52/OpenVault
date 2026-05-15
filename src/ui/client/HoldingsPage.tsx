@@ -12,7 +12,6 @@ type GroupBy = 'symbol' | 'account';
 
 const MONO: React.CSSProperties = { fontFamily: "'DM Mono', monospace" };
 const COLS = '20px 90px 1fr 90px 120px 130px 120px';
-const SUB_COLS = '20px 90px 1fr 90px 120px 130px 120px';
 
 function fmtQty(q: number): string {
   return q.toLocaleString('en-CA', { maximumFractionDigits: 4 });
@@ -95,12 +94,14 @@ function buildSymbolGroups(holdings: HoldingRow[]): SymbolGroup[] {
   }
   return Array.from(map.entries()).map(([symbol, rows]) => {
     const allHaveCostBasis = rows.every(h => h.costBasisCents != null);
+    const totalQty = rows.reduce((s, h) => s + h.quantity, 0);
+    const totalMvCents = rows.reduce((s, h) => s + h.marketValueCents, 0);
     return {
       symbol,
       name: rows[0].name ?? null,
-      totalQty: rows.reduce((s, h) => s + h.quantity, 0),
-      pricePerUnitCents: rows[0].pricePerUnitCents,
-      totalMvCents: rows.reduce((s, h) => s + h.marketValueCents, 0),
+      totalQty,
+      pricePerUnitCents: totalQty > 0 ? Math.round(totalMvCents / totalQty) : rows[0].pricePerUnitCents,
+      totalMvCents,
       totalGainLoss: allHaveCostBasis
         ? rows.reduce((s, h) => s + h.marketValueCents - h.costBasisCents!, 0)
         : null,
@@ -137,7 +138,10 @@ function SymbolGroupedView({ holdings }: { holdings: HoldingRow[] }) {
         return (
           <div key={g.symbol}>
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => toggle(g.symbol)}
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && toggle(g.symbol)}
               style={{
                 display: 'grid', gridTemplateColumns: COLS,
                 padding: '13px 20px', alignItems: 'center',
@@ -165,7 +169,7 @@ function SymbolGroupedView({ holdings }: { holdings: HoldingRow[] }) {
               const subLast = hi === g.rows.length - 1;
               return (
                 <div key={`${h.institutionName}::${h.accountName}`} style={{
-                  display: 'grid', gridTemplateColumns: SUB_COLS,
+                  display: 'grid', gridTemplateColumns: COLS,
                   padding: '10px 20px', alignItems: 'center',
                   background: 'var(--bg-sidebar)',
                   borderBottom: !subLast || !isLast ? '1px solid var(--border-row)' : 'none',
@@ -207,25 +211,24 @@ function SymbolGroupedView({ holdings }: { holdings: HoldingRow[] }) {
 // ── Account-grouped view ─────────────────────────────────────────────────────
 
 function AccountGroupedView({ holdings }: { holdings: HoldingRow[] }) {
-  const grouped = new Map<string, HoldingRow[]>();
+  const grouped = new Map<string, { institutionName: string; accountName: string; rows: HoldingRow[] }>();
   for (const h of holdings) {
     const key = `${h.institutionName}::${h.accountName}`;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(h);
+    if (!grouped.has(key)) grouped.set(key, { institutionName: h.institutionName, accountName: h.accountName, rows: [] });
+    grouped.get(key)!.rows.push(h);
   }
-  const groups = Array.from(grouped.entries());
+  const groups = Array.from(grouped.values());
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {groups.map(([key, rows]) => {
-        const [institutionName, accountName] = key.split('::');
+      {groups.map(({ institutionName, accountName, rows }) => {
         const accountTotal = rows.reduce((s, h) => s + h.marketValueCents, 0);
         const accountGl = rows.every(h => h.costBasisCents != null)
           ? rows.reduce((s, h) => s + h.marketValueCents - h.costBasisCents!, 0)
           : null;
 
         return (
-          <div key={key}>
+          <div key={`${institutionName}::${accountName}`}>
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               marginBottom: 8, padding: '0 12px',
@@ -251,7 +254,7 @@ function AccountGroupedView({ holdings }: { holdings: HoldingRow[] }) {
               {rows.map((h, i) => {
                 const gl = h.costBasisCents != null ? h.marketValueCents - h.costBasisCents : null;
                 return (
-                  <div key={h.symbol} style={{
+                  <div key={`${h.symbol}::${i}`} style={{
                     display: 'grid', gridTemplateColumns: COLS,
                     padding: '13px 20px', alignItems: 'center',
                     borderBottom: i < rows.length - 1 ? '1px solid var(--border-row)' : 'none',
