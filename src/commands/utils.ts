@@ -71,6 +71,7 @@ export interface AccountEntry {
   type: string;
   currency?: string;
   balance: string;
+  lastUpdated: string;
 }
 
 export function printAccountsTable(
@@ -78,7 +79,7 @@ export function printAccountsTable(
   { demo, showInstitution }: { demo: boolean; showInstitution: boolean },
 ): void {
   if (demo) entries = entries.map(applyDemo);
-  const headers = { account: 'Account', accountId: 'ID', type: 'Type', balance: 'Balance' };
+  const headers = { account: 'Account', accountId: 'ID', type: 'Type', balance: 'Balance', lastUpdated: 'Last Updated' };
   const showAccountId = entries.some(e => e.accountId != null);
 
   const formatted = entries.map(e => ({
@@ -86,7 +87,7 @@ export function printAccountsTable(
     balance: e.currency && e.balance !== '—' ? `${e.currency} ${e.balance}` : e.balance,
   }));
 
-  const width = (key: 'institution' | 'account' | 'accountId' | 'type' | 'balance') =>
+  const width = (key: 'institution' | 'account' | 'accountId' | 'type' | 'balance' | 'lastUpdated') =>
     Math.max(
       key === 'institution' ? 'Institution'.length : headers[key as keyof typeof headers].length,
       ...formatted.map(e => (e[key] ?? '').length),
@@ -97,6 +98,7 @@ export function printAccountsTable(
     accountId: showAccountId ? width('accountId') : 0,
     type: width('type'),
     balance: width('balance'),
+    lastUpdated: width('lastUpdated'),
   };
 
   const fmt = (e: typeof formatted[number]) => [
@@ -105,10 +107,12 @@ export function printAccountsTable(
     showAccountId ? (e.accountId ?? '').padEnd(w.accountId) : null,
     e.type.padEnd(w.type),
     e.balance.padStart(w.balance),
+    e.lastUpdated ?? '',
   ].filter(Boolean).join('  ');
 
   const header = fmt({
-    institution: 'Institution', account: 'Account', accountId: 'ID', type: 'Type', balance: 'Balance',
+    institution: 'Institution', account: 'Account', accountId: 'ID', type: 'Type',
+    balance: 'Balance', lastUpdated: 'Last Updated',
   });
   const divider = fmt({
     institution: '-'.repeat(w.institution),
@@ -116,6 +120,7 @@ export function printAccountsTable(
     accountId: '-'.repeat(w.accountId),
     type: '-'.repeat(w.type),
     balance: '-'.repeat(w.balance),
+    lastUpdated: '-'.repeat(w.lastUpdated),
   });
 
   console.log();
@@ -184,13 +189,21 @@ export function printHoldingsTable(holdings: Holding[]): void {
   console.log();
 }
 
-export function selectFromList(items: string[], label: string): Promise<number> {
-  let selected = 0;
+export function selectFromList(
+  items: string[],
+  label: string,
+  skipIndices: Set<number> = new Set(),
+  header?: string,
+): Promise<number> {
+  const firstSelectable = items.findIndex((_, i) => !skipIndices.has(i));
+  let selected = firstSelectable === -1 ? 0 : firstSelectable;
 
   const render = (first: boolean) => {
     if (!first) process.stdout.write(`\x1b[${items.length}A`);
     for (let i = 0; i < items.length; i++) {
-      if (i === selected) {
+      if (skipIndices.has(i)) {
+        process.stdout.write(`\x1b[2K\x1b[2m    ${items[i]}\x1b[0m\n`);
+      } else if (i === selected) {
         process.stdout.write(`\x1b[2K\x1b[7m  > ${items[i]}\x1b[0m\n`);
       } else {
         process.stdout.write(`\x1b[2K    ${items[i]}\n`);
@@ -199,6 +212,7 @@ export function selectFromList(items: string[], label: string): Promise<number> 
   };
 
   process.stdout.write(`\n  ${label}\n`);
+  if (header) process.stdout.write(`\x1b[4m    ${header}\x1b[0m\n`);
   render(true);
 
   return new Promise(resolve => {
@@ -208,9 +222,13 @@ export function selectFromList(items: string[], label: string): Promise<number> 
 
     const onData = (ch: string) => {
       if (ch === '\x1b[A') {
-        if (selected > 0) { selected--; render(false); }
+        let next = selected - 1;
+        while (next >= 0 && skipIndices.has(next)) next--;
+        if (next >= 0) { selected = next; render(false); }
       } else if (ch === '\x1b[B') {
-        if (selected < items.length - 1) { selected++; render(false); }
+        let next = selected + 1;
+        while (next < items.length && skipIndices.has(next)) next++;
+        if (next < items.length) { selected = next; render(false); }
       } else if (ch === '\r' || ch === '\n') {
         process.stdout.write('\n');
         process.stdin.setRawMode?.(false);
