@@ -260,7 +260,7 @@ export async function callOllama(params: ProviderCallParams): Promise<ProviderRe
   return { toolUses, assistantContent, rawForLog: response };
 }
 
-export async function callOllamaSimple(model: string, userMessage: string): Promise<string> {
+export async function callOllamaForText(model: string, userMessage: string): Promise<string> {
   const response = await getClient().chat.completions.create({
     model,
     max_tokens: 512,

@@ -38,7 +38,7 @@ export async function callAnthropic(params: ProviderCallParams): Promise<Provide
   };
 }
 
-export async function callAnthropicSimple(model: string, userMessage: string): Promise<string> {
+export async function callAnthropicForText(model: string, userMessage: string): Promise<string> {
   const response = await getClient().messages.create({
     model,
     max_tokens: 512,

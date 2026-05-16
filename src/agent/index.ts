@@ -6,7 +6,7 @@ import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
 import { redact } from './redact';
 export { SUCCESS_TOOL } from './tools';
 import { LOGS_DIR } from '../db';
-import { callModel } from './model_providers';
+import { callWithTools } from './model_providers';
 
 export const MAX_TURNS = 20;
 export const SEPARATOR = '─'.repeat(60);
@@ -166,7 +166,7 @@ export async function runAgent<T>(
     await fs.appendFile(logFile, `### User → Agent\n\n`);
     await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify([...pendingPrefix, pageStateMessage(snapFile)], null, 2))}\n\`\`\`\n\n`);
 
-    const response = await callModel({
+    const response = await callWithTools({
       model,
       maxTokens,
       system: systemPrompt,
