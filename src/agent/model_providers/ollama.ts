@@ -115,9 +115,49 @@ function toOpenAIMessages(
 // Some models (e.g. Qwen) embed tool calls as <tool_call> XML, markdown code
 // blocks, or bare JSON in the content field when structured tool_calls are absent.
 
+// Walk the text character-by-character, tracking brace/string depth, and yield
+// each top-level JSON object as a parsed value. A regex with lazy [\s\S]*? breaks
+// on nested objects because it stops at the first } regardless of depth.
+function extractJsonObjects(text: string): Record<string, unknown>[] {
+  const results: Record<string, unknown>[] = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] !== '{') { i++; continue; }
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let j = i;
+    while (j < text.length) {
+      const ch = text[j];
+      if (escaped)              { escaped = false; }
+      else if (ch === '\\' && inString) { escaped = true; }
+      else if (ch === '"')      { inString = !inString; }
+      else if (!inString) {
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) {
+            try {
+              const obj = JSON.parse(text.slice(i, j + 1)) as unknown;
+              if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+                results.push(obj as Record<string, unknown>);
+              }
+            } catch { /* not valid JSON */ }
+            i = j + 1;
+            break;
+          }
+        }
+      }
+      j++;
+    }
+    if (j >= text.length && depth > 0) i++; // unclosed brace — skip
+  }
+  return results;
+}
+
 let _callIdSeq = 0;
 
-function parseToolCallsFromText(
+export function parseToolCallsFromText(
   text: string,
 ): Array<{ id: string; name: string; input: Record<string, unknown> }> {
   const results: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
@@ -146,9 +186,10 @@ function parseToolCallsFromText(
   while ((m = xmlRe.exec(text)) !== null) tryExtract(m[1].trim());
   if (results.length > 0) return results;
 
-  // Match top-level JSON objects that start with {"name":
-  const jsonRe = /\{"name"\s*:[\s\S]*?\}(?=\s*(?:\{|$))/g;
-  while ((m = jsonRe.exec(text)) !== null) tryExtract(m[0]);
+  // Scan for bare JSON objects using brace-depth tracking.
+  // A regex with lazy [\s\S]*? stops at the first } and fails on nested objects
+  // like {"name":"fill","arguments":{"selector":"#id"}} — the depth tracker does not.
+  for (const candidate of extractJsonObjects(text)) tryExtract(JSON.stringify(candidate));
 
   return results;
 }
