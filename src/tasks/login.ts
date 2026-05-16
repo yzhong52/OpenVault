@@ -229,7 +229,7 @@ export async function login(
     if (events.length > 0) {
       console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
-        events, 'logging into a financial institution website',
+        events, 'logging into a financial institution website', model,
       );
       await saveMemoryNotes(institutionName, 'login', sessionNotes);
     }

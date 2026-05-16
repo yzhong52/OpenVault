@@ -215,7 +215,7 @@ export async function exploreAccounts(
     if (events.length > 0) {
       console.log('🤖 Summarizing session... ⏳');
       const sessionNotes = await generateSessionNotes(
-        events, 'exploring a financial institution dashboard to discover all accounts',
+        events, 'exploring a financial institution dashboard to discover all accounts', model,
       );
       await saveMemoryNotes(institutionName, MEMORY_TASK, sessionNotes);
     }

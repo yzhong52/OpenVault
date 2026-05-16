@@ -1,8 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DATA_DIR } from './db';
-import { keychainLoadApiKey } from './keychain';
+import { callForText } from './agent/model_providers';
 
 export interface ToolEvent {
   description: string;
@@ -109,7 +108,7 @@ export function formatMemoryForPrompt(notes: string, task: string): string {
 
 
 export async function generateSessionNotes(
-  events: ToolEvent[], taskContext: string,
+  events: ToolEvent[], taskContext: string, model: string,
 ): Promise<string> {
   if (events.length === 0) return '';
 
@@ -117,16 +116,10 @@ export async function generateSessionNotes(
     .map(e => `- ${e.description}: ${e.outcome === 'error' ? `FAILED (${e.error})` : 'ok'}`)
     .join('\n');
 
-  const client = new Anthropic({ apiKey: keychainLoadApiKey() ?? process.env.ANTHROPIC_API_KEY });
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
-    messages: [{
-      role: 'user',
-      content: `You are reviewing a browser automation session for ${taskContext}. Here is the sequence of actions taken:\n\n${transcript}\n\nWrite 3-5 concise bullet points capturing:\n- Which selectors or tools worked well and should be tried first next time\n- Which failed and what succeeded instead\n- Any unusual flows or page structures encountered\n\nBe specific about element names and tools used. These notes will be injected into the next session's system prompt.\n\nDo not include a heading or title — start directly with the bullet points.`,
-    }],
-  });
+  const text = await callForText(
+    model,
+    `You are reviewing a browser automation session for ${taskContext}. Here is the sequence of actions taken:\n\n${transcript}\n\nWrite 3-5 concise bullet points capturing:\n- Which selectors or tools worked well and should be tried first next time\n- Which failed and what succeeded instead\n- Any unusual flows or page structures encountered\n\nBe specific about element names and tools used. These notes will be injected into the next session's system prompt.\n\nDo not include a heading or title — start directly with the bullet points.`,
+  );
 
-  const block = response.content.find(b => b.type === 'text');
-  return normalizeNotes(block?.text);
+  return normalizeNotes(text);
 }

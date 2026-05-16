@@ -23,7 +23,7 @@ export function makeSyncCommand(): Command {
     .option('--skip-transactions', 'Skip transaction fetch; only sync accounts')
     .option('-v, --verbose', 'Show accessibility snapshots in the terminal')
     .option('--demo', 'Hide sensitive data by randomizing balances and account numbers')
-    .option('--model <id>', 'Claude model ID to use (overrides the default)', 'claude-haiku-4-5-20251001')
+    .option('--model <id>', 'Model ID to use — Claude (claude-*) or Ollama (e.g. qwen2.5-coder:14b-instruct-q8_0)', 'claude-haiku-4-5-20251001')
     .action(async (opts: {
       institution?: string;
       all?: boolean;

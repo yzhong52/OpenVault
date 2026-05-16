@@ -76,18 +76,6 @@ export const BROWSER_TOOLS: Tool[] = [
     },
   },
   {
-    name: BROWSER_TOOL.GET_ELEMENTS,
-    description: 'Return elements matching a CSS selector with their key HTML attributes (tag, text, href, id, class, data-testid, aria-label). Use when the ARIA snapshot shows multiple elements with the same accessible name and you need to tell them apart to pick the right CSS selector for click_js. IMPORTANT: Do not guess HTML tag names from ARIA roles — ARIA "row" may be a <div> or <span>, not <tr>. Use * or omit the tag to match any element: "*:has-text(\\"foo\\") a" or ":has-text(\\"foo\\") a" instead of "tr:has-text(\\"foo\\") a".',
-    input_schema: {
-      type: 'object',
-      properties: {
-        selector: { type: 'string', description: 'CSS selector, e.g. "a", "button", "a[href*=webbroker]"' },
-        frame:    { type: 'string', description: 'CSS selector for the containing iframe, if any' },
-      },
-      required: ['selector'],
-    },
-  },
-  {
     name: BROWSER_TOOL.FILL_JS,
     description: 'Fill a form field by CSS selector. Use after get_inputs to fill fields that have no accessible name. Pass frame when the input is inside an iframe.',
     input_schema: {
@@ -197,30 +185,6 @@ export async function executeBrowserTool(
       return inputs.map((f, i) =>
         `[${i}] type=${f.type}${f.id ? ` id=${f.id}` : ''}${f.name ? ` name=${f.name}` : ''}${f.placeholder ? ` placeholder="${f.placeholder}"` : ''}`,
       ).join('\n');
-    }
-
-    case BROWSER_TOOL.GET_ELEMENTS: {
-      const elLocator = input.frame
-        ? page.frameLocator(input.frame as string).locator(input.selector as string)
-        : page.locator(input.selector as string);
-      const elements = await elLocator.evaluateAll((els) =>
-        els.map((el) => {
-          const e = el as HTMLElement;
-          const ATTRS = ['href', 'id', 'class', 'data-testid', 'aria-label', 'role', 'type', 'name'];
-          const attrs: string[] = [];
-          for (const attr of ATTRS) {
-            const val = e.getAttribute(attr);
-            if (val) attrs.push(`${attr}="${val}"`);
-          }
-          const text = (e.innerText ?? '').trim().replace(/\s+/g, ' ').slice(0, 80);
-          return { tag: el.tagName.toLowerCase(), attrs, text };
-        }),
-      );
-      if (elements.length === 0) return '(no elements matched)';
-      return elements.map((el, i) => {
-        const attrStr = el.attrs.length ? ' ' + el.attrs.join(' ') : '';
-        return `[${i}] <${el.tag}${attrStr}>${el.text}</${el.tag}>`;
-      }).join('\n');
     }
 
     case BROWSER_TOOL.FILL_JS: {
