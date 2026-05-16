@@ -181,11 +181,6 @@ export function parseToolCallsFromText(
   while ((m = mdRe.exec(text)) !== null) tryExtract(m[1].trim());
   if (results.length > 0) return results;
 
-  // Match <tool_call>...</tool_call> blocks (Qwen-instruct chat template)
-  const xmlRe = /<tool_call>([\s\S]*?)<\/tool_call>/g;
-  while ((m = xmlRe.exec(text)) !== null) tryExtract(m[1].trim());
-  if (results.length > 0) return results;
-
   // Scan for bare JSON objects using brace-depth tracking.
   // A regex with lazy [\s\S]*? stops at the first } and fails on nested objects
   // like {"name":"fill","arguments":{"selector":"#id"}} — the depth tracker does not.
