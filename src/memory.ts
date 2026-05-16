@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DATA_DIR } from './db';
-import { callModelSimple } from './agent/provider';
+import { callModelSimple } from './agent/model_providers';
 
 export interface ToolEvent {
   description: string;

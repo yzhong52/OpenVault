@@ -1,86 +1,24 @@
-import Anthropic from '@anthropic-ai/sdk';
-import type {
-  ContentBlockParam,
-  MessageParam,
-  Tool,
-  ToolUseBlock,
-} from '@anthropic-ai/sdk/resources/messages';
 import OpenAI from 'openai';
 import type {
   ChatCompletionMessageParam,
   ChatCompletionMessageFunctionToolCall,
 } from 'openai/resources/chat/completions';
-import { keychainLoadApiKey } from '../keychain';
+import type { ContentBlockParam, MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
+import type { ProviderCallParams, ProviderResponse } from './types';
 
-export interface ProviderResponse {
-  toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }>;
-  // Anthropic-format content blocks — used to append assistant turn to message history
-  assistantContent: ToolUseBlock[];
-  rawForLog: unknown;
-}
-
-export interface ProviderCallParams {
-  model: string;
-  maxTokens: number;
-  system: string;
-  tools: Tool[];
-  messages: MessageParam[];    // archived turns in Anthropic format
-  userContent: ContentBlockParam[]; // current user turn
-}
-
-// ─── Anthropic ────────────────────────────────────────────────────────────────
-
-let _anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
-  if (!_anthropicClient) {
-    const apiKey = keychainLoadApiKey() ?? process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error(
-      'Anthropic API key not found. Run: npm run cli -- config anthropic',
-    );
-    _anthropicClient = new Anthropic({ apiKey });
-  }
-  return _anthropicClient;
-}
-
-async function callAnthropic(params: ProviderCallParams): Promise<ProviderResponse> {
-  const response = await getAnthropicClient().messages.create({
-    model: params.model,
-    max_tokens: params.maxTokens,
-    system: params.system,
-    tools: params.tools,
-    tool_choice: { type: 'any' },
-    messages: [...params.messages, { role: 'user', content: params.userContent }],
-  });
-
-  const toolUses = response.content.filter(
-    (b): b is ToolUseBlock => b.type === 'tool_use',
-  );
-
-  return {
-    toolUses: toolUses.map(b => ({
-      id: b.id,
-      name: b.name,
-      input: b.input as Record<string, unknown>,
-    })),
-    assistantContent: toolUses,
-    rawForLog: response,
-  };
-}
-
-// ─── Ollama / OpenAI-compatible ───────────────────────────────────────────────
-
-let _ollamaClient: OpenAI | null = null;
-function getOllamaClient(): OpenAI {
-  if (!_ollamaClient) {
-    _ollamaClient = new OpenAI({
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    _client = new OpenAI({
       baseURL: process.env.OLLAMA_HOST ?? 'http://localhost:11434/v1',
       apiKey: 'ollama', // required by the SDK but ignored by Ollama
     });
   }
-  return _ollamaClient;
+  return _client;
 }
 
-// Convert Anthropic Tool[] → OpenAI function tools
+// ─── Anthropic → OpenAI format conversion ────────────────────────────────────
+
 function toOpenAITools(tools: Tool[]): OpenAI.Chat.Completions.ChatCompletionTool[] {
   return tools.map(t => ({
     type: 'function' as const,
@@ -92,8 +30,6 @@ function toOpenAITools(tools: Tool[]): OpenAI.Chat.Completions.ChatCompletionToo
   }));
 }
 
-// Convert Anthropic MessageParam[] + current userContent to OpenAI messages.
-//
 // Anthropic allows a single user turn to contain both tool_result blocks and text blocks.
 // OpenAI requires these to be separate messages: role:'tool' for results, role:'user' for text.
 // Tool results must immediately precede the next user text message in the sequence.
@@ -167,7 +103,6 @@ function toOpenAIMessages(
     }
   }
 
-  // Append the current user turn
   const { toolResults, textContent } = splitUserContent(userContent);
   out.push(...toolResults);
   if (textContent) out.push({ role: 'user', content: textContent });
@@ -175,9 +110,13 @@ function toOpenAIMessages(
   return out;
 }
 
-// Fallback: some models (e.g. Qwen) embed tool calls as text inside <tool_call> tags
-// or bare JSON objects when the structured tool_calls field is absent.
+// ─── Text-content tool call fallback ─────────────────────────────────────────
+//
+// Some models (e.g. Qwen) embed tool calls as <tool_call> XML, markdown code
+// blocks, or bare JSON in the content field when structured tool_calls are absent.
+
 let _callIdSeq = 0;
+
 function parseToolCallsFromText(
   text: string,
 ): Array<{ id: string; name: string; input: Record<string, unknown> }> {
@@ -214,11 +153,34 @@ function parseToolCallsFromText(
   return results;
 }
 
-async function callOllama(params: ProviderCallParams): Promise<ProviderResponse> {
+// ─── Main call ───────────────────────────────────────────────────────────────
+
+type RawMessage = OpenAI.Chat.Completions.ChatCompletionMessage | undefined;
+
+function extractToolUses(
+  msg: RawMessage,
+): Array<{ id: string; name: string; input: Record<string, unknown> }> {
+  const structured = (msg?.tool_calls ?? []).filter(
+    (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === 'function',
+  );
+  if (structured.length > 0) {
+    return structured.map(tc => ({
+      id: tc.id,
+      name: tc.function.name,
+      input: (() => {
+        try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
+        catch { return {} as Record<string, unknown>; }
+      })(),
+    }));
+  }
+  return parseToolCallsFromText(msg?.content ?? '');
+}
+
+export async function callOllama(params: ProviderCallParams): Promise<ProviderResponse> {
   const messages = toOpenAIMessages(params.messages, params.userContent, params.system);
   const tools = toOpenAITools(params.tools);
 
-  const response = await getOllamaClient().chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: params.model,
     max_tokens: params.maxTokens,
     messages,
@@ -227,26 +189,6 @@ async function callOllama(params: ProviderCallParams): Promise<ProviderResponse>
   });
 
   const message = response.choices[0]?.message;
-
-  function extractToolUses(
-    msg: typeof message,
-  ): Array<{ id: string; name: string; input: Record<string, unknown> }> {
-    const structured = (msg?.tool_calls ?? []).filter(
-      (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === 'function',
-    );
-    if (structured.length > 0) {
-      return structured.map(tc => ({
-        id: tc.id,
-        name: tc.function.name,
-        input: (() => {
-          try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
-          catch { return {} as Record<string, unknown>; }
-        })(),
-      }));
-    }
-    return parseToolCallsFromText(msg?.content ?? '');
-  }
-
   let toolUses = extractToolUses(message);
 
   if (toolUses.length === 0) {
@@ -258,7 +200,7 @@ async function callOllama(params: ProviderCallParams): Promise<ProviderResponse>
       { role: 'assistant', content: textContent || null },
       { role: 'user', content: 'You must call one of the provided tools. Do not write text.' },
     ];
-    const retry = await getOllamaClient().chat.completions.create({
+    const retry = await getClient().chat.completions.create({
       model: params.model,
       max_tokens: params.maxTokens,
       messages: retryMessages,
@@ -282,32 +224,11 @@ async function callOllama(params: ProviderCallParams): Promise<ProviderResponse>
   return { toolUses, assistantContent, rawForLog: response };
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-export function isAnthropicModel(model: string): boolean {
-  return model.startsWith('claude-');
-}
-
-export async function callModel(params: ProviderCallParams): Promise<ProviderResponse> {
-  return isAnthropicModel(params.model) ? callAnthropic(params) : callOllama(params);
-}
-
-// Thin wrapper for text-only calls (used by memory summarization).
-export async function callModelSimple(model: string, userMessage: string): Promise<string> {
-  if (isAnthropicModel(model)) {
-    const response = await getAnthropicClient().messages.create({
-      model,
-      max_tokens: 512,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-    const block = response.content.find(b => b.type === 'text');
-    return block?.type === 'text' ? block.text : '';
-  } else {
-    const response = await getOllamaClient().chat.completions.create({
-      model,
-      max_tokens: 512,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-    return response.choices[0]?.message.content ?? '';
-  }
+export async function callOllamaSimple(model: string, userMessage: string): Promise<string> {
+  const response = await getClient().chat.completions.create({
+    model,
+    max_tokens: 512,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+  return response.choices[0]?.message.content ?? '';
 }
