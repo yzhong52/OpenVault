@@ -14,11 +14,22 @@ npm install
 npx playwright install chromium
 ```
 
-Save your Anthropic API key to Keychain:
+**Choose a model provider** — LedgerAgent supports Anthropic Claude (default) or a locally-running Ollama model:
+
+**Anthropic (default)** — save your API key to Keychain:
 
 ```bash
 npm run cli -- config anthropic
 ```
+
+**Ollama** — install [Ollama](https://ollama.com), pull a model, and pass `--model` when syncing:
+
+```bash
+ollama pull qwen2.5-coder:14b-instruct-q8_0
+npm run cli -- sync --model qwen2.5-coder:14b-instruct-q8_0
+```
+
+No API key is needed when using Ollama. Set `OLLAMA_HOST` to override the default endpoint (`http://localhost:11434/v1`).
 
 Optionally, configure Gmail for automatic MFA code retrieval:
 
@@ -130,7 +141,7 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 
 ## Troubleshooting
 
-- If you see an Anthropic authentication error, run `npm run cli -- config anthropic` to save your API key to Keychain.
+- If you see an Anthropic authentication error, run `npm run cli -- config anthropic` to save your API key to Keychain (not needed when using Ollama).
 - If browser launch fails, make sure Google Chrome is installed and `npx playwright install chromium` has been run.
 - If MFA auto-fill does not work, run `npm run cli -- config gmail` and verify the Gmail App Password.
 - If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `~/.ledgeragent/logs/`. Sessions are grouped into subfolders named by host and timestamp (e.g. `app_wealthsimple_com_2025-05-28_143022/`). The 10 most recent sessions per host are kept automatically.
@@ -141,4 +152,4 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 - Node.js 18+
 - macOS (Keychain is used for credential storage)
 - Google Chrome
-- Anthropic API key
+- Anthropic API key **or** [Ollama](https://ollama.com) running locally
