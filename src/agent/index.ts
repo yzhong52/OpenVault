@@ -1,5 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-import type { ContentBlockParam, MessageParam, Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
+import type { ContentBlockParam, MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -7,7 +6,7 @@ import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
 import { redact } from './redact';
 export { SUCCESS_TOOL } from './tools';
 import { LOGS_DIR } from '../db';
-import { keychainLoadApiKey } from '../keychain';
+import { callModel } from './provider';
 
 export const MAX_TURNS = 20;
 export const SEPARATOR = '─'.repeat(60);
@@ -25,17 +24,6 @@ export const VERBOSE = process.env.VERBOSE === '1';
 const MAX_SESSIONS_PER_HOST = 10;
 
 
-let _client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!_client) {
-    const apiKey = keychainLoadApiKey() ?? process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error(
-      'Anthropic API key not found. Run: npm run cli -- config anthropic',
-    );
-    _client = new Anthropic({ apiKey });
-  }
-  return _client;
-}
 
 export interface ToolDone<T> {
   done: true;
@@ -178,29 +166,28 @@ export async function runAgent<T>(
     await fs.appendFile(logFile, `### User → Agent\n\n`);
     await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify([...pendingPrefix, pageStateMessage(snapFile)], null, 2))}\n\`\`\`\n\n`);
 
-    const response = await getClient().messages.create({
+    const response = await callModel({
       model,
-      max_tokens: maxTokens,
+      maxTokens,
       system: systemPrompt,
       tools,
-      tool_choice: { type: 'any' },
-      messages: [...messages, { role: 'user', content: userContent }],
+      messages,
+      userContent,
     });
 
     await fs.appendFile(logFile, `### Agent → User\n\n`);
     await fs.appendFile(
       logFile,
-      `\`\`\`json\n${redactSensitive(JSON.stringify(response, null, 2))}\n\`\`\`\n\n`,
+      `\`\`\`json\n${redactSensitive(JSON.stringify(response.rawForLog, null, 2))}\n\`\`\`\n\n`,
     );
 
     // Archive with placeholder — the snapshot is only needed live; compressing it
     // here keeps the history lean for every subsequent turn's API call.
     messages.push({ role: 'user', content: [...pendingPrefix, SNAPSHOT_PLACEHOLDER] });
-    messages.push({ role: 'assistant', content: response.content });
+    messages.push({ role: 'assistant', content: response.assistantContent as MessageParam['content'] });
 
-    const toolUses = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
-    // tool_choice: 'any' guarantees at least one tool call per response.
-    if (toolUses.length === 0) throw new Error('unexpected: Claude returned no tool calls');
+    const toolUses = response.toolUses;
+    if (toolUses.length === 0) throw new Error('unexpected: model returned no tool calls');
 
     const toolResults: { type: 'tool_result'; tool_use_id: string; content: string }[] = [];
     let result: { value: T } | undefined;
