@@ -175,6 +175,45 @@ function toOpenAIMessages(
   return out;
 }
 
+// Fallback: some models (e.g. Qwen) embed tool calls as text inside <tool_call> tags
+// or bare JSON objects when the structured tool_calls field is absent.
+let _callIdSeq = 0;
+function parseToolCallsFromText(
+  text: string,
+): Array<{ id: string; name: string; input: Record<string, unknown> }> {
+  const results: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+
+  function tryExtract(raw: string): void {
+    try {
+      const obj = JSON.parse(raw) as Record<string, unknown>;
+      const name = obj.name;
+      if (typeof name !== 'string' || name.length === 0) return;
+      const input = (obj.arguments ?? obj.parameters ?? obj.input ?? {}) as Record<string, unknown>;
+      // Allow any name through — unknown names produce an error result that the
+      // model can learn from, exactly as the structured tool_calls path does.
+      results.push({ id: `tc_${++_callIdSeq}`, name, input });
+    } catch { /* not valid JSON */ }
+  }
+
+  let m: RegExpExecArray | null;
+
+  // Match ```json ... ``` or ``` ... ``` markdown code blocks
+  const mdRe = /```(?:json)?\s*([\s\S]*?)```/g;
+  while ((m = mdRe.exec(text)) !== null) tryExtract(m[1].trim());
+  if (results.length > 0) return results;
+
+  // Match <tool_call>...</tool_call> blocks (Qwen-instruct chat template)
+  const xmlRe = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+  while ((m = xmlRe.exec(text)) !== null) tryExtract(m[1].trim());
+  if (results.length > 0) return results;
+
+  // Match top-level JSON objects that start with {"name":
+  const jsonRe = /\{"name"\s*:[\s\S]*?\}(?=\s*(?:\{|$))/g;
+  while ((m = jsonRe.exec(text)) !== null) tryExtract(m[0]);
+
+  return results;
+}
+
 async function callOllama(params: ProviderCallParams): Promise<ProviderResponse> {
   const messages = toOpenAIMessages(params.messages, params.userContent, params.system);
   const tools = toOpenAITools(params.tools);
@@ -187,24 +226,52 @@ async function callOllama(params: ProviderCallParams): Promise<ProviderResponse>
     tool_choice: 'required',
   });
 
-  const allToolCalls = response.choices[0]?.message.tool_calls ?? [];
-  const rawToolCalls = allToolCalls.filter(
-    (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === 'function',
-  );
-  if (rawToolCalls.length === 0) {
-    throw new Error('unexpected: model returned no tool calls');
+  const message = response.choices[0]?.message;
+
+  function extractToolUses(
+    msg: typeof message,
+  ): Array<{ id: string; name: string; input: Record<string, unknown> }> {
+    const structured = (msg?.tool_calls ?? []).filter(
+      (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === 'function',
+    );
+    if (structured.length > 0) {
+      return structured.map(tc => ({
+        id: tc.id,
+        name: tc.function.name,
+        input: (() => {
+          try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
+          catch { return {} as Record<string, unknown>; }
+        })(),
+      }));
+    }
+    return parseToolCallsFromText(msg?.content ?? '');
   }
 
-  const toolUses = rawToolCalls.map(tc => ({
-    id: tc.id,
-    name: tc.function.name,
-    input: (() => {
-      try { return JSON.parse(tc.function.arguments) as Record<string, unknown>; }
-      catch { return {} as Record<string, unknown>; }
-    })(),
-  }));
+  let toolUses = extractToolUses(message);
 
-  // Build Anthropic-format assistant content blocks for message history
+  if (toolUses.length === 0) {
+    // The model responded with text instead of a tool call. Give it one retry with
+    // an explicit nudge — this happens when tool_choice:'required' is not honored.
+    const textContent = message?.content ?? '';
+    const retryMessages: ChatCompletionMessageParam[] = [
+      ...messages,
+      { role: 'assistant', content: textContent || null },
+      { role: 'user', content: 'You must call one of the provided tools. Do not write text.' },
+    ];
+    const retry = await getOllamaClient().chat.completions.create({
+      model: params.model,
+      max_tokens: params.maxTokens,
+      messages: retryMessages,
+      tools,
+      tool_choice: 'required',
+    });
+    toolUses = extractToolUses(retry.choices[0]?.message);
+    if (toolUses.length === 0) {
+      const preview = textContent ? `\nModel responded with text: ${textContent.slice(0, 300)}` : '';
+      throw new Error(`unexpected: model returned no tool calls${preview}`);
+    }
+  }
+
   const assistantContent: ToolUseBlock[] = toolUses.map(tu => ({
     type: 'tool_use',
     id: tu.id,
