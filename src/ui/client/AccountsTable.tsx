@@ -190,7 +190,9 @@ export function AccountsPage({ accounts, holdings }: Props) {
                 <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
                   {accts.map((a, i) => {
                     const acctHoldings = holdings.filter(
-                      h => h.institutionName === a.institutionName && h.accountName === a.accountName,
+                      h =>
+                        h.institutionName === a.institutionName &&
+                        h.accountName === a.accountName,
                     );
                     const holdingKey = `${a.institutionName}/${a.accountName}`;
                     const holdingOpen = expandedHolding === holdingKey;

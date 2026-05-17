@@ -79,7 +79,14 @@ export function makeSyncCommand(): Command {
 
           console.log(`\n🤖 Syncing ${inst.name}... ⏳`);
           const sessionDir = await createSession(inst.name);
-          await login(page, inst.url, { username: inst.username, password }, inst.name, sessionDir, opts.model);
+          await login(
+            page,
+            inst.url,
+            { username: inst.username, password },
+            inst.name,
+            sessionDir,
+            opts.model,
+          );
 
           if (!opts.skipAccounts) {
             // --- Accounts ---
@@ -93,9 +100,17 @@ export function makeSyncCommand(): Command {
                 institutionAccountId: a.accountId !== a.accountName ? a.accountId : undefined,
               }));
 
-            const accounts = await exploreAccounts(page, inst.name, sessionDir, existingAccounts, opts.model);
+            const accounts = await exploreAccounts(
+              page,
+              inst.name,
+              sessionDir,
+              existingAccounts,
+              opts.model,
+            );
             const diff = saveSync(db, inst.name, inst.url, accounts);
-            const allSyncedAccounts = listAccounts(db).filter(a => a.institutionName === inst.name);
+            const allSyncedAccounts = listAccounts(db).filter(
+              a => a.institutionName === inst.name,
+            );
             printAccountSyncResult(inst.name, diff, allSyncedAccounts, { demo: opts.demo });
 
             if (!opts.skipHoldings) {
@@ -112,7 +127,13 @@ export function makeSyncCommand(): Command {
                   r => r.accountId === (account.accountId ?? account.name),
                 );
                 if (!row) continue;
-                const holdings = await exploreHoldings(page, inst.name, account, sessionDir, opts.model);
+                const holdings = await exploreHoldings(
+                  page,
+                  inst.name,
+                  account,
+                  sessionDir,
+                  opts.model,
+                );
                 saveHoldings(db, row.id, holdings);
                 console.log(`  Holdings for ${account.name}:`);
                 printHoldingsTable(holdings);
@@ -146,7 +167,10 @@ export function makeSyncCommand(): Command {
                 );
                 continue;
               }
-              accountsToSync = dbAccounts.map(a => ({ name: a.accountName, accountId: a.accountId }));
+              accountsToSync = dbAccounts.map(a => ({
+                name: a.accountName,
+                accountId: a.accountId,
+              }));
             }
 
             for (const account of accountsToSync) {

@@ -311,7 +311,7 @@ export function listTransactions(
   db: Db,
   filters: { institutionName?: string; accountName?: string; days?: number } = {},
 ): TransactionRow[] {
-  // Cutoff is date-only; ISO string prefix comparison works because YYYY-MM-DD < YYYY-MM-DDTHH:MM:SS
+  // Date-only cutoff works with ISO prefix comparison.
   const cutoff = filters.days != null
     ? new Date(Date.now() - filters.days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     : undefined;

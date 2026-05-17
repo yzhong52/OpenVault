@@ -145,7 +145,10 @@ export function makeAccountsCommand(): Command {
           return;
         }
 
-        const { header: srcHeader, labels: srcLabels } = accountLabels(rows, { showInstitution: true });
+        const { header: srcHeader, labels: srcLabels } = accountLabels(
+          rows,
+          { showInstitution: true },
+        );
         const srcIdx = await selectFromList(
           srcLabels,
           'Choose an account to merge from (will be deleted):',
@@ -154,17 +157,26 @@ export function makeAccountsCommand(): Command {
         );
 
         const src = rows[srcIdx];
-        const tgtRows = rows.filter((r, i) => i !== srcIdx && r.institutionName === src.institutionName);
+        const tgtRows = rows.filter(
+          (r, i) => i !== srcIdx && r.institutionName === src.institutionName,
+        );
         if (tgtRows.length === 0) {
-          console.log(`  No other accounts found under ${src.institutionName}. Nothing to merge into.`);
+          console.log(
+            `  No other accounts found under ${src.institutionName}. Nothing to merge into.`,
+          );
           return;
         }
 
         // Insert source into the display list at its natural sorted position so the user
         // can see it alongside candidates. It is dimmed and skipped during navigation.
-        const allRows = [...tgtRows, src].sort((a, b) => a.accountName.localeCompare(b.accountName));
+        const allRows = [...tgtRows, src].sort((a, b) =>
+          a.accountName.localeCompare(b.accountName),
+        );
         const srcDisplayIdx = allRows.indexOf(src);
-        const { header: tgtHeader, labels: tgtLabels } = accountLabels(allRows, { showInstitution: false });
+        const { header: tgtHeader, labels: tgtLabels } = accountLabels(
+          allRows,
+          { showInstitution: false },
+        );
         const displayLabels = tgtLabels.map(
           (label, i) => i === srcDisplayIdx ? `${label}  ← merging from this` : label,
         );

@@ -160,7 +160,10 @@ export async function login(
           const root = frame ? pg.frameLocator(frame) : pg;
           return i.selector
             ? root.locator(i.selector as string)
-            : root.getByRole(i.role as Parameters<typeof pg.getByRole>[0], { name: i.name as string });
+            : root.getByRole(
+              i.role as Parameters<typeof pg.getByRole>[0],
+              { name: i.name as string },
+            );
         };
         const credDesc = (i: Record<string, unknown>) =>
           i.selector ? String(i.selector) : `${i.role} "${i.name}"`;

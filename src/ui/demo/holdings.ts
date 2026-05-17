@@ -34,7 +34,9 @@ export function getDemoSymbolPrice(symbol: string): number {
 // Build a collision-free real→fake symbol map from all unique symbols in the dataset.
 // Sorts symbols for determinism, then assigns demo entries in order (cycling with a
 // numeric suffix if there are more real symbols than demo entries).
-export function buildDemoSymbolMap(realSymbols: string[]): Map<string, { symbol: string; name: string }> {
+export function buildDemoSymbolMap(
+  realSymbols: string[],
+): Map<string, { symbol: string; name: string }> {
   const unique = [...new Set(realSymbols)].sort();
   return new Map(unique.map((sym, i) => {
     const base = DEMO_HOLDINGS[i % DEMO_HOLDINGS.length];

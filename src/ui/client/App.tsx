@@ -45,7 +45,12 @@ export function App() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchAccounts(demo), fetchNetWorth(demo), fetchTransactions(demo), fetchHoldings(demo)])
+    Promise.all([
+      fetchAccounts(demo),
+      fetchNetWorth(demo),
+      fetchTransactions(demo),
+      fetchHoldings(demo),
+    ])
       .then(([accs, hist, txs, hlds]) => {
         setAccounts(accs); setNetWorth(hist); setTransactions(txs); setHoldings(hlds);
       })
@@ -68,7 +73,12 @@ export function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar page={page} setPage={navigate} demo={demo} setDemo={d => { saveDemo(d); setDemo(d); }}/>
+      <Sidebar
+        page={page}
+        setPage={navigate}
+        demo={demo}
+        setDemo={d => { saveDemo(d); setDemo(d); }}
+      />
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 60 }}>
         {loading && (
           <div style={{ padding: '32px 36px', color: 'var(--text-tertiary)', fontSize: 14 }}>

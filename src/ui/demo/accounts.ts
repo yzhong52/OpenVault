@@ -4,7 +4,9 @@ function isDemoDebt(accountId: string, type: string | null): boolean {
   if (type === 'credit' || type === 'loan') return true;
   // Deterministically make ~1 in 4 accounts a debt account.
   let hash = 0;
-  for (let i = 0; i < accountId.length; i++) hash = (hash * 31 + accountId.charCodeAt(i)) & 0x7fffffff;
+  for (let i = 0; i < accountId.length; i++) {
+    hash = (hash * 31 + accountId.charCodeAt(i)) & 0x7fffffff;
+  }
   return hash % 4 === 0;
 }
 

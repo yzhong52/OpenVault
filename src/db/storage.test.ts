@@ -197,7 +197,10 @@ describe('getNetWorthHistory', () => {
 
   it('carries forward previous balances for accounts not updated on a given day', () => {
     const [chequing, savings] = db
-      .select({ id: schema.accounts.id }).from(schema.accounts).orderBy(schema.accounts.accountId).all();
+      .select({ id: schema.accounts.id })
+      .from(schema.accounts)
+      .orderBy(schema.accounts.accountId)
+      .all();
 
     db.insert(schema.balances).values([
       { accountId: chequing.id, date: '2026-05-01', amountCents: 100000 },

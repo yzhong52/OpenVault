@@ -100,7 +100,9 @@ function buildSymbolGroups(holdings: HoldingRow[]): SymbolGroup[] {
       symbol,
       name: rows[0].name ?? null,
       totalQty,
-      pricePerUnitCents: totalQty > 0 ? Math.round(totalMvCents / totalQty) : rows[0].pricePerUnitCents,
+      pricePerUnitCents: totalQty > 0
+        ? Math.round(totalMvCents / totalQty)
+        : rows[0].pricePerUnitCents,
       totalMvCents,
       totalGainLoss: allHaveCostBasis
         ? rows.reduce((s, h) => s + h.marketValueCents - h.costBasisCents!, 0)
@@ -211,10 +213,19 @@ function SymbolGroupedView({ holdings }: { holdings: HoldingRow[] }) {
 // ── Account-grouped view ─────────────────────────────────────────────────────
 
 function AccountGroupedView({ holdings }: { holdings: HoldingRow[] }) {
-  const grouped = new Map<string, { institutionName: string; accountName: string; rows: HoldingRow[] }>();
+  const grouped = new Map<
+    string,
+    { institutionName: string; accountName: string; rows: HoldingRow[] }
+  >();
   for (const h of holdings) {
     const key = `${h.institutionName}::${h.accountName}`;
-    if (!grouped.has(key)) grouped.set(key, { institutionName: h.institutionName, accountName: h.accountName, rows: [] });
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        institutionName: h.institutionName,
+        accountName: h.accountName,
+        rows: [],
+      });
+    }
     grouped.get(key)!.rows.push(h);
   }
   const groups = Array.from(grouped.values());
@@ -246,10 +257,19 @@ function AccountGroupedView({ holdings }: { holdings: HoldingRow[] }) {
                     {gainLossText(accountGl)}
                   </span>
                 )}
-                <span style={{ ...MONO, fontSize: 13, fontWeight: 500 }}>{fmtCents(accountTotal)}</span>
+                <span style={{ ...MONO, fontSize: 13, fontWeight: 500 }}>
+                  {fmtCents(accountTotal)}
+                </span>
               </div>
             </div>
-            <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border-card)', overflow: 'hidden' }}>
+            <div
+              style={{
+                background: 'var(--bg-card)',
+                borderRadius: 12,
+                border: '1px solid var(--border-card)',
+                overflow: 'hidden',
+              }}
+            >
               <TableHeader/>
               {rows.map((h, i) => {
                 const gl = h.costBasisCents != null ? h.marketValueCents - h.costBasisCents : null;

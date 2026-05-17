@@ -175,7 +175,10 @@ export async function executeBrowserTool(
   switch (name) {
     case BROWSER_TOOL.CLICK: {
       let clickLocator = input.frame
-        ? page.frameLocator(input.frame as string).getByRole(input.role as Parameters<typeof page.getByRole>[0], { name: input.name as string })
+        ? page.frameLocator(input.frame as string).getByRole(
+          input.role as Parameters<typeof page.getByRole>[0],
+          { name: input.name as string },
+        )
         : byRole(page, input);
       if (typeof input.nth === 'number') clickLocator = clickLocator.nth(input.nth);
       await clickLocator.click({ timeout: 5000 });
@@ -220,11 +223,19 @@ export async function executeBrowserTool(
       const inputs = await locator.evaluateAll((els) =>
         els.map((el) => {
           const e = el as HTMLInputElement;
-          return { type: e.type || el.tagName.toLowerCase(), id: e.id, name: e.name, placeholder: e.placeholder };
+          return {
+            type: e.type || el.tagName.toLowerCase(),
+            id: e.id,
+            name: e.name,
+            placeholder: e.placeholder,
+          };
         }),
       );
       return inputs.map((f, i) =>
-        `[${i}] type=${f.type}${f.id ? ` id=${f.id}` : ''}${f.name ? ` name=${f.name}` : ''}${f.placeholder ? ` placeholder="${f.placeholder}"` : ''}`,
+        `[${i}] type=${f.type}` +
+          `${f.id ? ` id=${f.id}` : ''}` +
+          `${f.name ? ` name=${f.name}` : ''}` +
+          `${f.placeholder ? ` placeholder="${f.placeholder}"` : ''}`,
       ).join('\n');
     }
 
@@ -263,7 +274,10 @@ export async function executeBrowserTool(
 
     case BROWSER_TOOL.PRESS_ENTER: {
       const enterLocator = input.frame
-        ? page.frameLocator(input.frame as string).getByRole(input.role as Parameters<typeof page.getByRole>[0], { name: input.name as string })
+        ? page.frameLocator(input.frame as string).getByRole(
+          input.role as Parameters<typeof page.getByRole>[0],
+          { name: input.name as string },
+        )
         : byRole(page, input);
       await enterLocator.press('Enter', { timeout: 5000 });
       await afterClick(page);
