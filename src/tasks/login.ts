@@ -149,7 +149,6 @@ export async function login(
       page,
       TOOLS,
       buildSystemPrompt(notes),
-      'The browser has navigated to the login page.',
       async (name, input, pg) => {
         // Resolves the locator for a credential field. Some sites (e.g. Questrade) use
         // inputs with no accessible name, so ARIA role/name matching fails — CSS selector

@@ -173,7 +173,6 @@ export async function exploreAccounts(
       page,
       TOOLS,
       buildSystemPrompt(notes, existingAccounts),
-      'The user is now logged in.',
       async (name, input, pg) => {
         if (name === REPORT_ACCOUNTS) {
           const batch = (input as { accounts: Account[] }).accounts;

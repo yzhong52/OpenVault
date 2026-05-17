@@ -139,7 +139,6 @@ export async function fetchTransactions(
       page,
       TOOLS,
       buildSystemPrompt(notes, account, lookbackDays, sinceDate),
-      `Please fetch transactions for account ${account.name} from ${sinceDate} to today.`,
       async (name, input, pg) => {
         if (name === REPORT_TRANSACTIONS) {
           const batch = Array.isArray((input as { transactions: Transaction[] }).transactions)

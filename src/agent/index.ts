@@ -67,10 +67,6 @@ function pageStateMessage(snap: string): { type: 'text'; text: string } {
 //   Example: "You are a browser agent. Use fill_credential to fill in credentials. Call success()
 //   once the dashboard is visible."
 //
-// initialMessage: the first user-role message that starts the conversation, combined internally
-//   with the initial ARIA snapshot of the page.
-//   Example: "The browser has navigated to the login page."
-//
 // onTool: called for each tool use Claude returns. Return a plain string to feed the result back
 //   to Claude, or toolDone(value) to signal completion and carry the final value out of the loop.
 //
@@ -80,7 +76,6 @@ export async function runAgent<T>(
   page: Page,
   tools: Tool[],
   systemPrompt: string,
-  initialMessage: string,
   onTool: (
     name: string,
     input: Record<string, unknown>,
@@ -124,13 +119,11 @@ export async function runAgent<T>(
     return { snap, snapFile };
   }
 
-  // messages holds compressed history. pendingUserContent is the non-snapshot content for the
-  // next user turn: the initial message on turn 0, then tool results on later turns. Each loop
-  // appends the fresh snapshot before sending it to the API; archived user turns get the agent's
-  // page summary instead of the full snapshot.
+  // messages holds compressed history. pendingToolResults is the non-snapshot content for the
+  // next user turn: tool results on later turns. Each loop appends the fresh snapshot before
+  // sending it to the API; archived user turns get the agent's page summary instead.
   const messages: MessageParam[] = [];
-  const initialBlock = { type: 'text' as const, text: initialMessage };
-  let pendingUserContent: ContentBlockParam[] = [initialBlock];
+  let pendingToolResults: ContentBlockParam[] = [];
 
   const logFile = `${sessionDir}/conversation_${taskName}.md`;
   await fs.writeFile(
@@ -138,16 +131,11 @@ export async function runAgent<T>(
     `# ${path.basename(sessionDir)} — ${taskName}\n\n` +
       `## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`,
   );
-  const systemPromptWithPageSummary = systemPrompt +
-    '\n\nBefore each tool call, start your response with one sentence ' +
-    'summarizing the current page: what section is shown and what accounts or financial data ' +
-    'are visible. This helps you track which pages you have already visited.';
-
   for (let turn = 0; turn < maxTurns; turn++) {
     const { snap, snapFile } = await takeSnapshot();
     // API receives the full snapshot content; the log records the file path instead
     // so conversation logs stay readable without the full ARIA tree on every turn.
-    const userContent = [...pendingUserContent, pageStateMessage(snap)];
+    const userContent = [...pendingToolResults, pageStateMessage(snap)];
 
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
     await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
@@ -155,14 +143,14 @@ export async function runAgent<T>(
     await fs.appendFile(
       logFile,
       `\`\`\`json\n` +
-        `${redactSensitive(JSON.stringify([...pendingUserContent, pageStateMessage(snapFile)], null, 2))}` +
+        `${redactSensitive(JSON.stringify([...pendingToolResults, pageStateMessage(snapFile)], null, 2))}` +
         `\n\`\`\`\n\n`,
     );
 
     const response = await callWithTools({
       model,
       maxTokens,
-      system: systemPromptWithPageSummary,
+      system: systemPrompt,
       tools,
       messages,
       userContent,
@@ -177,7 +165,7 @@ export async function runAgent<T>(
     // Archive the agent's own page summary in place of the full snapshot.
     messages.push({
       role: 'user',
-      content: [...pendingUserContent, archiveSnapshot(response.responseText, snap)],
+      content: [...pendingToolResults, archiveSnapshot(response.responseText, snap)],
     });
     messages.push({
       role: 'assistant',
@@ -235,7 +223,7 @@ export async function runAgent<T>(
     if (!completion) {
       // Store tool results as the non-snapshot content for the next turn; the snapshot is taken
       // at the top of that turn so it captures the final post-tool page state.
-      pendingUserContent = toolResults;
+      pendingToolResults = toolResults;
     } else {
       return completion.value;
     }

@@ -149,7 +149,6 @@ export async function exploreHoldings(
       page,
       TOOLS,
       buildSystemPrompt(notes, account),
-      `Please fetch all holdings for account ${account.name}.`,
       async (name, input, pg) => {
         if (name === REPORT_HOLDINGS) {
           track('report_holdings', 'success');
