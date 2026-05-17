@@ -43,18 +43,6 @@ function isDone<T>(r: ToolContinue | ToolDone<T>): r is ToolDone<T> {
   return r.done;
 }
 
-// Archives the previous page snapshot as a brief summary written by the agent
-// itself. The agent is instructed (via the system prompt augmentation below) to
-// open each response with a one-sentence page summary before its tool calls;
-// that text is captured here so the agent can recall which pages it has visited
-// and what data it saw, preventing navigation flip-flopping.
-// Falls back to a raw truncation when the model produced no text.
-function archiveSnapshot(responseText: string, snap: string): { type: 'text'; text: string } {
-  if (responseText) return { type: 'text', text: `[prev page summary]\n${responseText}` };
-  const stripped = snap.replace(/\s*\[ref=\w+\]/g, '');
-  const preview = stripped.length > 800 ? stripped.slice(0, 800) + '\n…' : stripped;
-  return { type: 'text', text: `[prev page state]\n${preview}` };
-}
 
 function pageStateMessage(snap: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Current page state:\n${snap}` };
@@ -119,10 +107,10 @@ export async function runAgent<T>(
     return { snap, snapFile };
   }
 
-  // messages holds compressed history. pendingToolResults is the non-snapshot content for the
+  // prevMessages holds compressed history. pendingToolResults is the non-snapshot content for the
   // next user turn: tool results on later turns. Each loop appends the fresh snapshot before
   // sending it to the API; archived user turns get the agent's page summary instead.
-  const messages: MessageParam[] = [];
+  const prevMessages: MessageParam[] = [];
   let pendingToolResults: ContentBlockParam[] = [];
 
   const logFile = `${sessionDir}/conversation_${taskName}.md`;
@@ -135,7 +123,7 @@ export async function runAgent<T>(
     const { snap, snapFile } = await takeSnapshot();
     // API receives the full snapshot content; the log records the file path instead
     // so conversation logs stay readable without the full ARIA tree on every turn.
-    const userContent = [...pendingToolResults, pageStateMessage(snap)];
+    const currentUserMsg = [...pendingToolResults, pageStateMessage(snap)];
 
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
     await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
@@ -152,8 +140,8 @@ export async function runAgent<T>(
       maxTokens,
       system: systemPrompt,
       tools,
-      messages,
-      userContent,
+      prevMessages,
+      currentMessage: currentUserMsg,
     });
 
     await fs.appendFile(logFile, `### Agent → User\n\n`);
@@ -162,12 +150,11 @@ export async function runAgent<T>(
       `\`\`\`json\n${redactSensitive(JSON.stringify(response.rawForLog, null, 2))}\n\`\`\`\n\n`,
     );
 
-    // Archive the agent's own page summary in place of the full snapshot.
-    messages.push({
+    prevMessages.push({
       role: 'user',
-      content: [...pendingToolResults, archiveSnapshot(response.responseText, snap)],
+      content: [...pendingToolResults, { type: 'text', text: '[earlier page snapshot hidden]' }],
     });
-    messages.push({
+    prevMessages.push({
       role: 'assistant',
       content: response.assistantContent as MessageParam['content'],
     });

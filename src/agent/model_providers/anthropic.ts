@@ -22,7 +22,7 @@ export async function callAnthropic(params: ProviderCallParams): Promise<Provide
     system: params.system,
     tools: params.tools,
     tool_choice: { type: 'any' },
-    messages: [...params.messages, { role: 'user', content: params.userContent }],
+    messages: [...params.prevMessages, { role: 'user', content: params.currentMessage }],
   });
 
   const toolUses = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
@@ -36,7 +36,6 @@ export async function callAnthropic(params: ProviderCallParams): Promise<Provide
     })),
     assistantContent: [...textBlocks, ...toolUses],
     rawForLog: response,
-    responseText: textBlocks.map(b => b.text).join('\n').trim(),
   };
 }
 

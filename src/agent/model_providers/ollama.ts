@@ -213,7 +213,7 @@ function extractToolUses(
 }
 
 export async function callOllama(params: ProviderCallParams): Promise<ProviderResponse> {
-  const messages = toOpenAIMessages(params.messages, params.userContent, params.system);
+  const messages = toOpenAIMessages(params.prevMessages, params.currentMessage, params.system);
   const tools = toOpenAITools(params.tools);
 
   const response = await getClient().chat.completions.create({
@@ -257,7 +257,7 @@ export async function callOllama(params: ProviderCallParams): Promise<ProviderRe
     input: tu.input,
   }));
 
-  return { toolUses, assistantContent, rawForLog: response, responseText: (message?.content ?? '').trim() };
+  return { toolUses, assistantContent, rawForLog: response };
 }
 
 export async function callOllamaForText(model: string, userMessage: string): Promise<string> {

@@ -6,9 +6,6 @@ export interface ProviderResponse {
   // Includes text blocks so any reasoning the model writes is preserved in history.
   assistantContent: (TextBlock | ToolUseBlock)[];
   rawForLog: unknown;
-  // Any text the model wrote before its tool calls — used to archive a page summary
-  // in place of the full snapshot, avoiding a separate summarization API call.
-  responseText: string;
 }
 
 export interface ProviderCallParams {
@@ -16,6 +13,6 @@ export interface ProviderCallParams {
   maxTokens: number;
   system: string;
   tools: Tool[];
-  messages: MessageParam[];         // archived turns in Anthropic format
-  userContent: ContentBlockParam[]; // current user turn
+  prevMessages: MessageParam[];       // archived turns in Anthropic format
+  currentMessage: ContentBlockParam[]; // current user turn
 }
