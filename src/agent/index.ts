@@ -2,28 +2,19 @@ import type { ContentBlockParam, MessageParam, Tool } from '@anthropic-ai/sdk/re
 import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
 import { redact } from './redact';
-export { SUCCESS_TOOL } from './tools';
-import { LOGS_DIR } from '../db';
 import { callWithTools } from './model_providers';
+import {
+  logSnapshot,
+  logToolError,
+  logToolResult,
+  logToolUse,
+  snapshotPrefix,
+} from './log_utils';
+export { SUCCESS_TOOL } from './tools';
+export { createSession, SEPARATOR } from './log_utils';
 
 export const MAX_TURNS = 20;
-export const SEPARATOR = '─'.repeat(60);
-
-function briefInput(input: Record<string, unknown>): string {
-  if (input.role && input.name) return `${input.role} "${input.name}"`;
-  if (input.testId)   return `#${input.testId}`;
-  if (input.text)     return `"${input.text}"`;
-  if (input.selector) return `"${input.selector}"`;
-  if (Array.isArray(input.transactions)) return `(${input.transactions.length} items)`;
-  if (Array.isArray(input.accounts))     return `(${input.accounts.length} items)`;
-  return '';
-}
-export const VERBOSE = process.env.VERBOSE === '1';
-const MAX_LOG_SESSIONS = 20;
-
-
 
 export interface ToolDone<T> {
   done: true;
@@ -54,52 +45,6 @@ function archiveSnapshot(responseText: string, snap: string): { type: 'text'; te
 
 function pageStateMessage(snap: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Current page state:\n${snap}` };
-}
-
-function sessionTimestamp(folderName: string): string | null {
-  const timestampFirst = folderName.match(/^(\d{4}-\d{2}-\d{2}_\d{6}(?:_\d{3})?)_/);
-  if (timestampFirst) return timestampFirst[1];
-
-  const legacyTimestampLast = folderName.match(/_(\d{4}-\d{2}-\d{2}_\d{6})$/);
-  return legacyTimestampLast ? legacyTimestampLast[1] : null;
-}
-
-function slugifyLogName(name: string): string {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return slug || 'unknown_institution';
-}
-
-async function pruneLogSessions(): Promise<void> {
-  const entries = await fs.readdir(LOGS_DIR, { withFileTypes: true }).catch(() => []);
-  const folders = entries
-    .filter(e => e.isDirectory())
-    .map(e => ({ name: e.name, timestamp: sessionTimestamp(e.name) }))
-    .filter((e): e is { name: string; timestamp: string } => e.timestamp !== null)
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-
-  for (const { name } of folders.slice(MAX_LOG_SESSIONS)) {
-    await fs.rm(`${LOGS_DIR}/${name}`, { recursive: true }).catch(() => {});
-  }
-}
-
-export async function createSession(institutionName: string): Promise<string> {
-  const institutionSlug = slugifyLogName(institutionName);
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
-  const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
-  const sessionDir = `${LOGS_DIR}/${date}_${time}_${milliseconds}_${institutionSlug}`;
-  await fs.mkdir(sessionDir, { recursive: true });
-  await pruneLogSessions();
-  return sessionDir;
-}
-
-function snapshotPrefix(logName: string): string {
-  return logName.replace(/^conversation_/, 'snapshot_');
 }
 
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
@@ -162,12 +107,7 @@ export async function runAgent<T>(
     snap = redactSensitive(snap);
     const snapFile = `${snapshotsDir}/${snapPrefix}_${String(++snapCount).padStart(3, '0')}.txt`;
     await fs.writeFile(snapFile, snap);
-    if (VERBOSE) {
-      const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
-      console.log(`📸 Snapshot:\n${preview}\nFull: ${snapFile}`);
-    } else {
-      console.log(`📸 Snapshot`);
-    }
+    logSnapshot(snap, snapFile);
     return { snap, snapFile };
   }
 
@@ -195,7 +135,12 @@ export async function runAgent<T>(
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
     await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
     await fs.appendFile(logFile, `### User → Agent\n\n`);
-    await fs.appendFile(logFile, `\`\`\`json\n${redactSensitive(JSON.stringify([...pendingPrefix, pageStateMessage(snapFile)], null, 2))}\n\`\`\`\n\n`);
+    await fs.appendFile(
+      logFile,
+      `\`\`\`json\n` +
+        `${redactSensitive(JSON.stringify([...pendingPrefix, pageStateMessage(snapFile)], null, 2))}` +
+        `\n\`\`\`\n\n`,
+    );
 
     const response = await callWithTools({
       model,
@@ -215,8 +160,14 @@ export async function runAgent<T>(
     );
 
     // Archive the agent's own page summary in place of the full snapshot.
-    messages.push({ role: 'user', content: [...pendingPrefix, archiveSnapshot(response.responseText, snap)] });
-    messages.push({ role: 'assistant', content: response.assistantContent as MessageParam['content'] });
+    messages.push({
+      role: 'user',
+      content: [...pendingPrefix, archiveSnapshot(response.responseText, snap)],
+    });
+    messages.push({
+      role: 'assistant',
+      content: response.assistantContent as MessageParam['content'],
+    });
 
     const toolUses = response.toolUses;
     if (toolUses.length === 0) throw new Error('unexpected: model returned no tool calls');
@@ -226,14 +177,13 @@ export async function runAgent<T>(
 
     for (const toolUse of toolUses) {
       if (!result) {
-        if (toolUse.name === SUCCESS_TOOL) {
-          console.log(`🔄 ${turn + 1}/${maxTurns} 💬 Mission accomplished`);
-        } else if (VERBOSE) {
-          console.log(`🔄 ${turn + 1}/${maxTurns} 💬 ${toolUse.name}`, redactSensitive(JSON.stringify(toolUse.input)));
-        } else {
-          const brief = briefInput(toolUse.input as Record<string, unknown>);
-          console.log(`🔄 ${turn + 1}/${maxTurns} 💬 ${toolUse.name}${brief ? ` ${brief}` : ''}`);
-        }
+        logToolUse(
+          turn,
+          maxTurns,
+          toolUse.name,
+          toolUse.input as Record<string, unknown>,
+          redactSensitive,
+        );
 
         let output = '';
         try {
@@ -247,13 +197,7 @@ export async function runAgent<T>(
             result = { value: r.value };
           } else {
             output = redactSensitive(r);
-            const preview = output.length > 240 ? output.slice(0, 240) + '…' : output;
-            if (toolUse.name === BROWSER_TOOL.GET_INPUTS) {
-              if (VERBOSE) console.log(`🔧 Inputs retrieved:\n${preview}`);
-              else console.log(`🔧 Inputs retrieved`);
-            } else {
-              console.log(`🔧 ${preview}`);
-            }
+            logToolResult(toolUse.name, output);
             toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
           }
         } catch (err) {
@@ -263,14 +207,7 @@ export async function runAgent<T>(
           // didn't reliably stop the loop in practice because the model still found reasons
           // to retry given the full conversation history. Needs a better approach.
           output = redactSensitive(`error: ${err instanceof Error ? err.message : String(err)}`);
-          if (VERBOSE) {
-            const preview = output.length > 480 ? output.slice(0, 480) + '…' : output;
-            // Playwright errors contain ANSI colour codes; '\x1b[0m' prevents colour bleed.
-            console.log(`❌ ${preview}\x1b[0m`);
-          } else {
-            const errorType = err instanceof Error ? err.constructor.name : String(err);
-            console.log(`❌ ${errorType}`);
-          }
+          logToolError(err, output);
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
         }
       } else {
