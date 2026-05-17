@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
-import { LOGS_DIR } from '../db';
-import { BROWSER_TOOL, SUCCESS_TOOL } from './tools';
+import { LOGS_DIR } from '../../db';
+import { BROWSER_TOOL, SUCCESS_TOOL } from '../tools';
 
 export const SEPARATOR = '─'.repeat(60);
 export const VERBOSE = process.env.VERBOSE === '1';
