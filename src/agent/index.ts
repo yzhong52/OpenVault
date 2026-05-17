@@ -161,7 +161,10 @@ export async function runAgent<T>(
       system: systemPrompt,
       tools,
       messages: [],
-      userContent: [{ type: 'text', text: `Current state:\n${currentSummary}` }],
+      userContent: [
+        { type: 'text', text: `Current state:\n${currentSummary}` },
+        { type: 'text', text: `Current page:\n${snap}` },
+      ],
     });
 
     await fs.appendFile(
