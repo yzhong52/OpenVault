@@ -8,7 +8,7 @@ import type { Page } from 'playwright';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { redact } from './redact';
-import { callWithTools } from './model_providers';
+import { callWithTools, callForText } from './model_providers';
 import {
   logSnapshot,
   logToolError,
@@ -46,6 +46,20 @@ function isDone<T>(r: ToolContinue | ToolDone<T>): r is ToolDone<T> {
 
 function pageStateMessage(snap: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Current page state:\n${snap}` };
+}
+
+async function summarizePage(
+  snap: string, prevContext: string, systemPrompt: string, model: string,
+): Promise<string> {
+  const prompt = [
+    `Task context:\n${systemPrompt}`,
+    prevContext ? `Previously seen:\n${prevContext}` : null,
+    `Current page:\n${snap}`,
+    'Summarize the financial data visible on the current page (accounts, balances, transactions, ' +
+      'navigation, etc.). Build on the previously seen context so the result is a full accumulated ' +
+      'picture of what has been observed so far.',
+  ].filter(Boolean).join('\n\n');
+  return callForText(model, prompt);
 }
 
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
@@ -112,6 +126,7 @@ export async function runAgent<T>(
   // sending it to the API; archived user turns get the agent's page summary instead.
   const prevMessages: MessageParam[] = [];
   let pendingToolResults: ContentBlockParam[] = [];
+  let accumulatedContext = '';
 
   const logFile = `${sessionDir}/conversation_${taskName}.md`;
   await fs.writeFile(
@@ -123,7 +138,10 @@ export async function runAgent<T>(
     const { snap, snapFile } = await takeSnapshot();
     // API receives the full snapshot content; the log records the file path instead
     // so conversation logs stay readable without the full ARIA tree on every turn.
-    const currentUserMsg = [...pendingToolResults, pageStateMessage(snap)];
+    const contextBlock: ContentBlockParam[] = accumulatedContext
+      ? [{ type: 'text', text: `[accumulated context]\n${accumulatedContext}` }]
+      : [];
+    const currentUserMsg = [...pendingToolResults, ...contextBlock, pageStateMessage(snap)];
 
     if (turn > 0) await fs.appendFile(logFile, '---\n\n');
     await fs.appendFile(logFile, `## Turn ${turn}\n\n`);
@@ -150,9 +168,12 @@ export async function runAgent<T>(
       `\`\`\`json\n${redactSensitive(JSON.stringify(response.rawForLog, null, 2))}\n\`\`\`\n\n`,
     );
 
+    accumulatedContext = await summarizePage(snap, accumulatedContext, systemPrompt, model);
+    await fs.appendFile(logFile, `### Accumulated Context\n\n${accumulatedContext}\n\n`);
+
     prevMessages.push({
       role: 'user',
-      content: [...pendingToolResults, { type: 'text', text: '[earlier page snapshot hidden]' }],
+      content: [...pendingToolResults, { type: 'text', text: `[page summary]\n${accumulatedContext}` }],
     });
     prevMessages.push({
       role: 'assistant',
