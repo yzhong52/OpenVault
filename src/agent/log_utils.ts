@@ -59,10 +59,6 @@ export async function createSession(institutionName: string): Promise<string> {
   return sessionDir;
 }
 
-export function snapshotPrefix(logName: string): string {
-  return logName.replace(/^conversation_/, 'snapshot_');
-}
-
 export function logSnapshot(snap: string, snapFile: string): void {
   if (VERBOSE) {
     const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;

@@ -14,7 +14,6 @@ import {
   logToolError,
   logToolResult,
   logToolUse,
-  snapshotPrefix,
 } from './log_utils';
 export { SUCCESS_TOOL } from './tools';
 export { createSession, SEPARATOR } from './log_utils';
@@ -79,7 +78,7 @@ export async function runAgent<T>(
     page: Page,
   ) => Promise<string | ToolDone<T>>,
   sessionDir: string,
-  logName: string,
+  taskName: string,
   sensitiveValues: string[] = [],
   maxTurns: number,
   maxTokens: number,
@@ -88,7 +87,7 @@ export async function runAgent<T>(
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
   const snapshotsDir = `${sessionDir}/snapshots`;
-  const snapPrefix = snapshotPrefix(logName);
+  const snapPrefix = `snapshot_${taskName}`;
   await fs.mkdir(snapshotsDir, { recursive: true });
 
   async function takeSnapshot(): Promise<{ snap: string; snapFile: string }> {
@@ -124,10 +123,10 @@ export async function runAgent<T>(
   const initialBlock = { type: 'text' as const, text: initialMessage };
   let pendingUserContent: ContentBlockParam[] = [initialBlock];
 
-  const logFile = `${sessionDir}/${logName}.md`;
+  const logFile = `${sessionDir}/conversation_${taskName}.md`;
   await fs.writeFile(
     logFile,
-    `# ${path.basename(sessionDir)} — ${logName}\n\n` +
+    `# ${path.basename(sessionDir)} — ${taskName}\n\n` +
       `## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`,
   );
   const systemPromptWithPageSummary = systemPrompt +
@@ -180,10 +179,10 @@ export async function runAgent<T>(
     if (toolUses.length === 0) throw new Error('unexpected: model returned no tool calls');
 
     const toolResults: ToolResultBlockParam[] = [];
-    let result: { value: T } | undefined;
+    let completion: { value: T } | undefined;
 
     for (const toolUse of toolUses) {
-      if (!result) {
+      if (!completion) {
         logToolUse(
           turn,
           maxTurns,
@@ -201,7 +200,7 @@ export async function runAgent<T>(
               tool_use_id: toolUse.id,
               content: redactSensitive(r.content),
             });
-            result = { value: r.value };
+            completion = { value: r.value };
           } else {
             output = redactSensitive(r);
             logToolResult(toolUse.name, output);
@@ -224,12 +223,12 @@ export async function runAgent<T>(
       }
     }
 
-    if (!result) {
+    if (!completion) {
       // Store tool results as the non-snapshot content for the next turn; the snapshot is taken
       // at the top of that turn so it captures the final post-tool page state.
       pendingUserContent = toolResults;
     } else {
-      return result.value;
+      return completion.value;
     }
   }
 

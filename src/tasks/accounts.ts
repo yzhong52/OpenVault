@@ -205,7 +205,7 @@ export async function exploreAccounts(
         return executeBrowserTool(name, input, pg);
       },
       sessionDir,
-      'conversation_accounts',
+      'accounts',
       [],
       MAX_TURNS,
       1024,

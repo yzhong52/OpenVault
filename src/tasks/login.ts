@@ -219,7 +219,7 @@ export async function login(
         }
       },
       sessionDir,
-      'conversation_login',
+      'login',
       [creds.username, creds.password],
       MAX_TURNS,
       1024,

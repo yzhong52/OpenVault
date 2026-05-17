@@ -182,7 +182,7 @@ export async function exploreHoldings(
         return executeBrowserTool(name, input, pg);
       },
       sessionDir,
-      `conversation_holdings_${account.name.toLowerCase().replace(/\s+/g, '_')}`,
+      `holdings_${account.name.toLowerCase().replace(/\s+/g, '_')}`,
       [],
       MAX_TURNS,
       1024,

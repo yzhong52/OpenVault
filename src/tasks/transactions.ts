@@ -173,7 +173,7 @@ export async function fetchTransactions(
         return executeBrowserTool(name, input, pg);
       },
       sessionDir,
-      `conversation_transactions_${account.name.toLowerCase().replace(/\s+/g, '_')}`,
+      `transactions_${account.name.toLowerCase().replace(/\s+/g, '_')}`,
       [],
       MAX_TURNS,
       8192,
