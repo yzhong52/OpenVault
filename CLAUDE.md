@@ -121,7 +121,7 @@ Run `npm run cli -- institution add`. The login agent is institution-agnostic �
 
 ## Logs
 
-Each agent session writes to `logs/<hostname>_<YYYY-MM-DD>_<HHMMSS>/`:
+Each agent session writes to `logs/<YYYY-MM-DD>_<HHMMSS>_<mmm>_<institution>/`:
 
 - `conversation_<task>.md` — full conversation log in Markdown for a specific task (e.g.
   `conversation_login.md`, `conversation_transactions_wealthsimple_credit_card.md`). Each turn
@@ -130,9 +130,10 @@ Each agent session writes to `logs/<hostname>_<YYYY-MM-DD>_<HHMMSS>/`:
   - **`stop_reason`**: why the model stopped (`tool_use` = normal, `max_tokens` = response was
     truncated — a common cause of empty or malformed tool inputs)
   - **Agent → User**: the tool calls the model returned
-- `<n>.txt` — individual accessibility snapshots taken after each action
+- `snapshots/snapshot_<task>_<n>.txt` — individual accessibility snapshots taken after each
+  action, named to match the corresponding `conversation_<task>.md` log
 
-The 10 most recent sessions per host are kept; older ones are pruned automatically.
+The 20 most recent sessions overall are kept; older sessions are pruned automatically.
 
 ## Adding a new task
 

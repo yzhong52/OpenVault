@@ -64,6 +64,15 @@ function sessionTimestamp(folderName: string): string | null {
   return legacyTimestampLast ? legacyTimestampLast[1] : null;
 }
 
+function slugifyLogName(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return slug || 'unknown_institution';
+}
+
 async function pruneLogSessions(): Promise<void> {
   const entries = await fs.readdir(LOGS_DIR, { withFileTypes: true }).catch(() => []);
   const folders = entries
@@ -77,13 +86,13 @@ async function pruneLogSessions(): Promise<void> {
   }
 }
 
-export async function createSession(url: string): Promise<string> {
-  const hostSlug = new URL(url).hostname.replace(/\./g, '_');
+export async function createSession(institutionName: string): Promise<string> {
+  const institutionSlug = slugifyLogName(institutionName);
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
   const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
   const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
-  const sessionDir = `${LOGS_DIR}/${date}_${time}_${milliseconds}_${hostSlug}`;
+  const sessionDir = `${LOGS_DIR}/${date}_${time}_${milliseconds}_${institutionSlug}`;
   await fs.mkdir(sessionDir, { recursive: true });
   await pruneLogSessions();
   return sessionDir;
@@ -171,7 +180,11 @@ export async function runAgent<T>(
   let pendingPrefix: ContentBlockParam[] = [initialBlock];
 
   const logFile = `${sessionDir}/${logName}.md`;
-  await fs.writeFile(logFile, `# ${path.basename(sessionDir)} — ${logName}\n\n## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`);
+  await fs.writeFile(
+    logFile,
+    `# ${path.basename(sessionDir)} — ${logName}\n\n` +
+      `## System Prompt\n\n${redactSensitive(systemPrompt)}\n\n`,
+  );
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const { snap, snapFile } = await takeSnapshot();

@@ -144,7 +144,7 @@ See [faq/how_to_config_gmail_for_mfa.md](faq/how_to_config_gmail_for_mfa.md) for
 - If you see an Anthropic authentication error, run `npm run cli -- config anthropic` to save your API key to Keychain (not needed when using Ollama).
 - If browser launch fails, make sure Google Chrome is installed and `npx playwright install chromium` has been run.
 - If MFA auto-fill does not work, run `npm run cli -- config gmail` and verify the Gmail App Password.
-- If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `~/.ledgeragent/logs/`. Sessions are grouped into subfolders named by host and timestamp (e.g. `app_wealthsimple_com_2025-05-28_143022/`). The 10 most recent sessions per host are kept automatically.
+- If a login flow breaks after an institution changes its UI, inspect the saved accessibility snapshots in `~/.ledgeragent/logs/`. Sessions are grouped into timestamp-first subfolders named with the institution (e.g. `2025-05-28_143022_123_wealthsimple/`). The 20 most recent sessions overall are kept automatically.
 - For more verbose agent output, run `DEBUG=1 npm run cli -- sync`.
 
 ## Requirements
