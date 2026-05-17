@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
+import { runAgent, toolDone, toolResult, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { GIVE_UP_TOOL, HOLDING_TOOL } from '../agent/tools';
 import {
@@ -171,7 +171,7 @@ export async function exploreHoldings(
           try {
             const result = await executeBrowserTool(name, input, pg);
             track(desc, 'success');
-            return result;
+            return toolResult(result);
           } catch (err) {
             const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
             track(desc, 'error', msg);
@@ -179,7 +179,7 @@ export async function exploreHoldings(
           }
         }
 
-        return executeBrowserTool(name, input, pg);
+        return toolResult(await executeBrowserTool(name, input, pg));
       },
       sessionDir,
       `holdings_${account.name.toLowerCase().replace(/\s+/g, '_')}`,

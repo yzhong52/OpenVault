@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import * as readline from 'readline';
-import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
+import { runAgent, toolDone, toolResult, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, byRole, executeBrowserTool } from '../agent/browser';
 import { LOGIN_TOOL } from '../agent/tools';
 import { fetchMfaCode } from '../gmail';
@@ -169,32 +169,32 @@ export async function login(
           case LOGIN_TOOL.FILL_USERNAME:
             await credLocator(input).fill(creds.username, { timeout: 5000 });
             track(`fill_username(${credDesc(input)})`, 'success');
-            return `filled ${credDesc(input)} with username`;
+            return toolResult(`filled ${credDesc(input)} with username`);
           case LOGIN_TOOL.FILL_PASSWORD:
             await credLocator(input).fill(creds.password, { timeout: 5000 });
             track(`fill_password(${credDesc(input)})`, 'success');
-            return `filled ${credDesc(input)} with password`;
+            return toolResult(`filled ${credDesc(input)} with password`);
           case LOGIN_TOOL.TYPE_USERNAME:
             await credLocator(input).pressSequentially(creds.username, { timeout: 5000 });
             track(`type_username(${credDesc(input)})`, 'success');
-            return `typed username into ${credDesc(input)}`;
+            return toolResult(`typed username into ${credDesc(input)}`);
           case LOGIN_TOOL.TYPE_PASSWORD:
             await credLocator(input).pressSequentially(creds.password, { timeout: 5000 });
             track(`type_password(${credDesc(input)})`, 'success');
-            return `typed password into ${credDesc(input)}`;
+            return toolResult(`typed password into ${credDesc(input)}`);
           case LOGIN_TOOL.FILL:
             await byRole(pg, input).fill(input.value as string, { timeout: 5000 });
             track(`fill(${input.role} "${input.name}")`, 'success');
-            return `filled ${input.role} "${input.name}"`;
+            return toolResult(`filled ${input.role} "${input.name}"`);
           case LOGIN_TOOL.TYPE:
             await byRole(pg, input).pressSequentially(input.value as string, { timeout: 5000 });
             track(`type(${input.role} "${input.name}")`, 'success');
-            return `typed into ${input.role} "${input.name}"`;
+            return toolResult(`typed into ${input.role} "${input.name}"`);
           case LOGIN_TOOL.REQUEST_MFA_CODE: {
             console.log(`\n${input.instructions as string}`);
             const code = await fetchMfaCode(loginStartedAt) ?? (await promptUser('Code: ')).trim();
             track('request_mfa_code', 'success');
-            return code;
+            return toolResult(code);
           }
           case LOGIN_TOOL.SUCCESS: {
             loginSucceeded = true;
@@ -208,14 +208,14 @@ export async function login(
               try {
                 const result = await executeBrowserTool(name, input, pg);
                 track(desc, 'success');
-                return result;
+                return toolResult(result);
               } catch (err) {
                 const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
                 track(desc, 'error', msg);
                 throw err;
               }
             }
-            return executeBrowserTool(name, input, pg);
+            return toolResult(await executeBrowserTool(name, input, pg));
         }
       },
       sessionDir,

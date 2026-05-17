@@ -16,8 +16,8 @@ function makeDb(): { sqlite: Database.Database; db: Db } {
   return { sqlite, db };
 }
 
-const CHQ  = { name: 'Chequing', accountId: 'chq',  type: 'Chequing' as const, currency: 'CAD', balance: 1000 };
-const SAV  = { name: 'Savings',  accountId: 'sav',  type: 'Savings'  as const, currency: 'CAD', balance: 2000 };
+const CHQ  = { name: 'Chequing', accountId: 'chq',  type: 'General' as const, currency: 'CAD', balance: 1000 };
+const SAV  = { name: 'Savings',  accountId: 'sav',  type: 'TFSA'    as const, currency: 'CAD', balance: 2000 };
 const RRSP = { name: 'RRSP',     accountId: 'rrsp', type: 'RRSP'     as const, currency: 'CAD', balance: 50000 };
 
 // ---------------------------------------------------------------------------
@@ -55,14 +55,14 @@ describe('saveSync', () => {
 
   it('multiple field changes reported together', () => {
     saveSync(db, 'TD', 'https://td.com', [
-      { name: 'Old', accountId: 'x', type: 'Savings', currency: 'CAD', balance: 100 },
+      { name: 'Old', accountId: 'x', type: 'TFSA', currency: 'CAD', balance: 100 },
     ]);
     const diff = saveSync(db, 'TD', 'https://td.com', [
-      { name: 'New', accountId: 'x', type: 'Chequing', currency: 'USD', balance: 90 },
+      { name: 'New', accountId: 'x', type: 'RRSP', currency: 'USD', balance: 90 },
     ]);
     expect(diff.updated[0].changes).toEqual([
       'balance $100.00 → $90.00',
-      'type Savings → Chequing',
+      'type TFSA → RRSP',
       'currency CAD → USD',
       'name "Old" → "New"',
     ]);
@@ -140,11 +140,11 @@ describe('example console output', () => {
 
         Current accounts for TD:
 
-        Account   ID    Type             Balance  Last Updated
-        --------  ----  --------  --------------  ------------
-        Chequing  chq   Chequing   CAD $1,500.00  2026-05-15
-        RRSP      rrsp  RRSP      CAD $50,000.00  2026-05-15
-        Savings   sav   Savings    CAD $2,000.00  2026-05-15
+        Account   ID    Type            Balance  Last Updated
+        --------  ----  -------  --------------  ------------
+        Chequing  chq   General   CAD $1,500.00  2026-05-17
+        RRSP      rrsp  RRSP     CAD $50,000.00  2026-05-17
+        Savings   sav   TFSA      CAD $2,000.00  2026-05-17
       "
     `);
   });

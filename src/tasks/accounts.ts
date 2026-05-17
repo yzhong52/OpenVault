@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone, MAX_TURNS, SEPARATOR } from '../agent';
+import { runAgent, toolDone, toolResult, MAX_TURNS, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { ACCOUNT_TOOL, DONE_TOOL, DONE_TOOL_DEF } from '../agent/tools';
 import {
@@ -179,7 +179,7 @@ export async function exploreAccounts(
           const batch = (input as { accounts: Account[] }).accounts;
           collectedAccounts.push(...batch);
           track('report_accounts', 'success');
-          return `${batch.length} accounts recorded (${collectedAccounts.length} total so far). Navigate to the next section or call done_accounts if finished.`;
+          return toolResult(`${batch.length} accounts recorded (${collectedAccounts.length} total so far). Navigate to the next section or call done_accounts if finished.`);
         }
 
         if (name === DONE_TOOL) {
@@ -194,7 +194,7 @@ export async function exploreAccounts(
           try {
             const result = await executeBrowserTool(name, input, pg);
             track(desc, 'success');
-            return result;
+            return toolResult(result);
           } catch (err) {
             const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
             track(desc, 'error', msg);
@@ -202,7 +202,7 @@ export async function exploreAccounts(
           }
         }
 
-        return executeBrowserTool(name, input, pg);
+        return toolResult(await executeBrowserTool(name, input, pg));
       },
       sessionDir,
       'accounts',

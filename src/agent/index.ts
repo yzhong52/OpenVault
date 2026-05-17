@@ -20,18 +20,27 @@ export { createSession, SEPARATOR } from './log_utils';
 
 export const MAX_TURNS = 20;
 
+export interface ToolContinue {
+  done: false;
+  content: string;
+}
+
 export interface ToolDone<T> {
   done: true;
   value: T;
   content: string;
 }
 
+export function toolResult(content: string): ToolContinue {
+  return { done: false, content };
+}
+
 export function toolDone<T>(value: T, content: string): ToolDone<T> {
   return { done: true, value, content };
 }
 
-function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
-  return typeof r !== 'string';
+function isDone<T>(r: ToolContinue | ToolDone<T>): r is ToolDone<T> {
+  return r.done;
 }
 
 // Archives the previous page snapshot as a brief summary written by the agent
@@ -76,7 +85,7 @@ export async function runAgent<T>(
     name: string,
     input: Record<string, unknown>,
     page: Page,
-  ) => Promise<string | ToolDone<T>>,
+  ) => Promise<ToolContinue | ToolDone<T>>,
   sessionDir: string,
   taskName: string,
   sensitiveValues: string[] = [],
@@ -202,7 +211,7 @@ export async function runAgent<T>(
             });
             completion = { value: r.value };
           } else {
-            output = redactSensitive(r);
+            output = redactSensitive(r.content);
             logToolResult(toolUse.name, output);
             toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: output });
           }

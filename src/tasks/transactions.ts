@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
-import { runAgent, toolDone, SEPARATOR } from '../agent';
+import { runAgent, toolDone, toolResult, SEPARATOR } from '../agent';
 import { BROWSER_TOOL, BROWSER_TOOLS, executeBrowserTool } from '../agent/browser';
 import { TRANSACTION_TOOL, DONE_TOOL, DONE_TOOL_DEF } from '../agent/tools';
 import {
@@ -147,7 +147,7 @@ export async function fetchTransactions(
             : [];
           collectedTransactions.push(...batch);
           track('report_transactions', 'success');
-          return `${batch.length} transactions recorded (${collectedTransactions.length} total so far). Continue paginating or call done if finished.`;
+          return toolResult(`${batch.length} transactions recorded (${collectedTransactions.length} total so far). Continue paginating or call done if finished.`);
         }
 
         if (name === DONE_TOOL) {
@@ -162,7 +162,7 @@ export async function fetchTransactions(
           try {
             const result = await executeBrowserTool(name, input, pg);
             track(desc, 'success');
-            return result;
+            return toolResult(result);
           } catch (err) {
             const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
             track(desc, 'error', msg);
@@ -170,7 +170,7 @@ export async function fetchTransactions(
           }
         }
 
-        return executeBrowserTool(name, input, pg);
+        return toolResult(await executeBrowserTool(name, input, pg));
       },
       sessionDir,
       `transactions_${account.name.toLowerCase().replace(/\s+/g, '_')}`,
