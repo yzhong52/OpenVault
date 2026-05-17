@@ -62,15 +62,21 @@ snapshot → Claude → tool call → execute → snapshot → …
 
 **Tools available to Claude:**
 
+Snapshots are taken automatically by the agent loop at the start of each turn (using `ariaSnapshot({ mode: 'ai' })`), which annotates every element with a stable ref like `[ref=e42]`. Claude does not call a snapshot tool explicitly.
+
+**Tools available to Claude:**
+
 | Tool | What it does |
 |---|---|
-| `snapshot` | Returns `page.locator('body').ariaSnapshot()` |
 | `fill` | Fills a form field by ARIA role + name using Playwright `fill()` (no key events) |
 | `type` | Types character-by-character via `pressSequentially()` (fires key events; required for OTP fields) |
 | `click` | Clicks by ARIA role + name; waits for `domcontentloaded` with 3s timeout |
+| `click_ref` | Clicks by `[ref=eXX]` from the snapshot; preferred over `click` when ref is available |
+| `fill_ref` | Fills a field by ref ID; preferred over `fill_js` when ref is available |
+| `type_ref` | Types character-by-character into a field by ref ID |
 | `click_testid` | Clicks by `data-testid`; escape hatch when role/name matches multiple elements |
 | `click_text` | Clicks by visible text content; useful when ARIA name differs from label |
-| `click_js` | JavaScript `.click()` via `evaluate()`; bypasses Playwright visibility checks |
+| `click_js` | JavaScript `.click()` via CSS selector; last resort when other click tools fail |
 | `press_enter` | Presses Enter on a field by ARIA role + name; submits forms when button click fails |
 | `request_mfa_code` | Checks Gmail for the OTP code automatically; falls back to prompting the user if not found |
 | `success` | Terminates the loop |
