@@ -43,7 +43,8 @@ After each action, the updated page state is provided automatically.${formatMemo
 const credFieldSchema = {
   type: 'object' as const,
   properties: {
-    role:     { type: 'string', description: 'ARIA role, e.g. textbox, combobox. Use with name to locate by accessibility tree. Provide either role+name or selector.' },
+    ref:      { type: 'string', description: 'ARIA ref from the snapshot, e.g. "e32". Preferred when role+name matching fails — the actual credential value is still injected locally.' },
+    role:     { type: 'string', description: 'ARIA role, e.g. textbox, combobox. Use with name to locate by accessibility tree.' },
     name:     { type: 'string', description: 'Accessible name of the field (label text). Required when using role.' },
     selector: { type: 'string', description: 'CSS selector, e.g. "#userId". Use when the field has no accessible name and role+name matching fails.' },
     frame:    { type: 'string', description: 'CSS selector of the iframe containing the field, e.g. "#loginFrame". Omit if the field is in the main frame.' },
@@ -155,6 +156,7 @@ export async function login(
         // is the fallback. Some sites (e.g. Schwab) embed the login form in an iframe,
         // requiring frameLocator before any getByRole/locator call.
         const credLocator = (i: Record<string, unknown>) => {
+          if (i.ref) return pg.locator(`aria-ref=${i.ref as string}`);
           const frame = i.frame as string | undefined;
           const root = frame ? pg.frameLocator(frame) : pg;
           return i.selector
@@ -165,7 +167,7 @@ export async function login(
             );
         };
         const credDesc = (i: Record<string, unknown>) =>
-          i.selector ? String(i.selector) : `${i.role} "${i.name}"`;
+          i.ref ? `ref=${i.ref}` : i.selector ? String(i.selector) : `${i.role} "${i.name}"`;
 
         switch (name) {
           case LOGIN_TOOL.FILL_USERNAME:
