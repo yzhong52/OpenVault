@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
+import type { TextBlock, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages';
 import { keychainLoadApiKey } from '../../keychain';
 import type { ProviderCallParams, ProviderResponse } from './types';
 
@@ -26,6 +26,7 @@ export async function callAnthropic(params: ProviderCallParams): Promise<Provide
   });
 
   const toolUses = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
+  const textBlocks = response.content.filter((b): b is TextBlock => b.type === 'text');
 
   return {
     toolUses: toolUses.map(b => ({
@@ -33,8 +34,9 @@ export async function callAnthropic(params: ProviderCallParams): Promise<Provide
       name: b.name,
       input: b.input as Record<string, unknown>,
     })),
-    assistantContent: toolUses,
+    assistantContent: [...textBlocks, ...toolUses],
     rawForLog: response,
+    responseText: textBlocks.map(b => b.text).join('\n').trim(),
   };
 }
 

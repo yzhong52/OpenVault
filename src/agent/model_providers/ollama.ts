@@ -257,7 +257,7 @@ export async function callOllama(params: ProviderCallParams): Promise<ProviderRe
     input: tu.input,
   }));
 
-  return { toolUses, assistantContent, rawForLog: response };
+  return { toolUses, assistantContent, rawForLog: response, responseText: (message?.content ?? '').trim() };
 }
 
 export async function callOllamaForText(model: string, userMessage: string): Promise<string> {

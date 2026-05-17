@@ -21,7 +21,7 @@ function briefInput(input: Record<string, unknown>): string {
   return '';
 }
 export const VERBOSE = process.env.VERBOSE === '1';
-const MAX_SESSIONS_PER_HOST = 10;
+const MAX_LOG_SESSIONS = 20;
 
 
 
@@ -39,28 +39,40 @@ function isDone<T>(r: string | ToolDone<T>): r is ToolDone<T> {
   return typeof r !== 'string';
 }
 
-// Replaces the snapshot block in archived user messages to save input tokens.
-// Only the latest snapshot is useful to Claude; prior ones are dead weight.
-const SNAPSHOT_PLACEHOLDER = { type: 'text' as const, text: '[snapshot]' };
+// Archives the previous page snapshot as a brief summary written by the agent
+// itself. The agent is instructed (via the system prompt augmentation below) to
+// open each response with a one-sentence page summary before its tool calls;
+// that text is captured here so the agent can recall which pages it has visited
+// and what data it saw, preventing navigation flip-flopping.
+// Falls back to a raw truncation when the model produced no text.
+function archiveSnapshot(responseText: string, snap: string): { type: 'text'; text: string } {
+  if (responseText) return { type: 'text', text: `[prev page summary]\n${responseText}` };
+  const stripped = snap.replace(/\s*\[ref=\w+\]/g, '');
+  const preview = stripped.length > 800 ? stripped.slice(0, 800) + '\n…' : stripped;
+  return { type: 'text', text: `[prev page state]\n${preview}` };
+}
 
 function pageStateMessage(snap: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Current page state:\n${snap}` };
 }
 
-function sessionHostSlug(folderName: string): string | null {
-  const match = folderName.match(/^(.+)_\d{4}-\d{2}-\d{2}_\d{6}$/);
-  return match ? match[1] : null;
+function sessionTimestamp(folderName: string): string | null {
+  const timestampFirst = folderName.match(/^(\d{4}-\d{2}-\d{2}_\d{6}(?:_\d{3})?)_/);
+  if (timestampFirst) return timestampFirst[1];
+
+  const legacyTimestampLast = folderName.match(/_(\d{4}-\d{2}-\d{2}_\d{6})$/);
+  return legacyTimestampLast ? legacyTimestampLast[1] : null;
 }
 
-async function pruneSessionsForHost(hostSlug: string): Promise<void> {
+async function pruneLogSessions(): Promise<void> {
   const entries = await fs.readdir(LOGS_DIR, { withFileTypes: true }).catch(() => []);
   const folders = entries
-    .filter(e => e.isDirectory() && sessionHostSlug(e.name) === hostSlug)
-    .map(e => e.name)
-    .sort()
-    .reverse();
+    .filter(e => e.isDirectory())
+    .map(e => ({ name: e.name, timestamp: sessionTimestamp(e.name) }))
+    .filter((e): e is { name: string; timestamp: string } => e.timestamp !== null)
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
-  for (const name of folders.slice(MAX_SESSIONS_PER_HOST)) {
+  for (const { name } of folders.slice(MAX_LOG_SESSIONS)) {
     await fs.rm(`${LOGS_DIR}/${name}`, { recursive: true }).catch(() => {});
   }
 }
@@ -70,10 +82,15 @@ export async function createSession(url: string): Promise<string> {
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
   const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
-  const sessionDir = `${LOGS_DIR}/${hostSlug}_${date}_${time}`;
+  const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+  const sessionDir = `${LOGS_DIR}/${date}_${time}_${milliseconds}_${hostSlug}`;
   await fs.mkdir(sessionDir, { recursive: true });
-  await pruneSessionsForHost(hostSlug);
+  await pruneLogSessions();
   return sessionDir;
+}
+
+function snapshotPrefix(logName: string): string {
+  return logName.replace(/^conversation_/, 'snapshot_');
 }
 
 // T is the task's return type — e.g. Account[] for exploreAccounts, void for login.
@@ -112,6 +129,7 @@ export async function runAgent<T>(
   let snapCount = 0;
   const redactSensitive = (text: string) => redact(text, sensitiveValues);
   const snapshotsDir = `${sessionDir}/snapshots`;
+  const snapPrefix = snapshotPrefix(logName);
   await fs.mkdir(snapshotsDir, { recursive: true });
 
   async function takeSnapshot(): Promise<{ snap: string; snapFile: string }> {
@@ -133,7 +151,7 @@ export async function runAgent<T>(
     }
     if (snap === null) throw new Error('Could not snapshot page after 3 attempts');
     snap = redactSensitive(snap);
-    const snapFile = `${snapshotsDir}/${String(++snapCount).padStart(3, '0')}.txt`;
+    const snapFile = `${snapshotsDir}/${snapPrefix}_${String(++snapCount).padStart(3, '0')}.txt`;
     await fs.writeFile(snapFile, snap);
     if (VERBOSE) {
       const preview = snap.length > 240 ? snap.slice(0, 240) + '…' : snap;
@@ -146,8 +164,8 @@ export async function runAgent<T>(
 
   // messages holds compressed history. pendingPrefix is the non-snapshot content for the next
   // user turn (initial message block, or tool results). At the top of each turn a snapshot is
-  // taken and appended to form the live userContent sent to the API; SNAPSHOT_PLACEHOLDER is
-  // appended instead when archiving into messages.
+  // taken and appended to form the live userContent sent to the API; the archived message gets
+  // the agent's page summary instead of the full snapshot.
   const messages: MessageParam[] = [];
   const initialBlock = { type: 'text' as const, text: initialMessage };
   let pendingPrefix: ContentBlockParam[] = [initialBlock];
@@ -169,7 +187,9 @@ export async function runAgent<T>(
     const response = await callWithTools({
       model,
       maxTokens,
-      system: systemPrompt,
+      system: systemPrompt + '\n\nBefore each tool call, start your response with one sentence ' +
+        'summarizing the current page: what section is shown and what accounts or financial data ' +
+        'are visible. This helps you track which pages you have already visited.',
       tools,
       messages,
       userContent,
@@ -181,9 +201,8 @@ export async function runAgent<T>(
       `\`\`\`json\n${redactSensitive(JSON.stringify(response.rawForLog, null, 2))}\n\`\`\`\n\n`,
     );
 
-    // Archive with placeholder — the snapshot is only needed live; compressing it
-    // here keeps the history lean for every subsequent turn's API call.
-    messages.push({ role: 'user', content: [...pendingPrefix, SNAPSHOT_PLACEHOLDER] });
+    // Archive the agent's own page summary in place of the full snapshot.
+    messages.push({ role: 'user', content: [...pendingPrefix, archiveSnapshot(response.responseText, snap)] });
     messages.push({ role: 'assistant', content: response.assistantContent as MessageParam['content'] });
 
     const toolUses = response.toolUses;
